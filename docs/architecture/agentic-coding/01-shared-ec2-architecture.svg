@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1660" viewBox="0 0 1800 1660" role="img" aria-labelledby="title desc"><title id="title">03 / One machine with five runners</title><desc id="desc">Architecture view • a runner is a program that runs jobs • all five share one 32 GB EC2 machine. Proposed reference architecture, not deployed configuration.</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10" fill="none" stroke="#ff4d00" stroke-width="2"/></marker>
+<style>text{font-family:"Comic Sans MS","Segoe Print",cursive,sans-serif;fill:#fff}.title{font-size:32px;font-weight:700}.body{font-size:17px}.heading{font-size:21px;font-weight:700}.note{font-size:15px}.accent{fill:#ff4d00}.outline{fill:#1a1a1a;stroke:#fff;stroke-width:2;stroke-linejoin:round}.focus{stroke:#ff4d00;stroke-width:2.5}.link{fill:none;stroke:#ff4d00;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow)}.async{stroke-dasharray:8 7}</style></defs><rect width="1800" height="1660" fill="#1a1a1a"/>
+<text x="60" y="60" class="title">03 / One machine with five runners</text>
+<text x="60" y="94" class="body">Architecture view • a runner is a program that runs jobs • all five share one 32 GB EC2 machine.</text>
+<g id="github" data-box="60,250,420,170">
+<path d="M60 250 Q270 248 480 250 L480 420 Q270 422 60 420 Z" class="outline focus"/>
+<text x="84" y="294" class="heading">GitHub</text>
+<text x="84" y="322" class="body">Holds the job waiting list.</text>
+<text x="84" y="348" class="body">Sends work to an available runner.</text>
+<text x="84" y="374" class="body">Shows results, logs and output files.</text>
+</g>
+<path d="M600 170 Q1170 168 1740 170 L1740 890 Q1170 892 600 890 Z" class="outline"/>
+<text x="620" y="202" class="heading accent">AWS • ONE EC2 MACHINE • m8g.2xlarge / ARM64</text>
+<g id="machine" data-box="640,245,1060,140">
+<path d="M640 245 Q1170 243 1700 245 L1700 385 Q1170 387 640 385 Z" class="outline focus"/>
+<text x="664" y="289" class="heading">8 vCPU + 32 GB RAM + 100 GB disk — shared by all five runners</text>
+<text x="664" y="317" class="body">Linux, Java, Docker and coding-agent tools are installed here.</text>
+<text x="664" y="343" class="body">Each runner has its own job folder. CPU, memory and disk still belong to the same machine.</text>
+</g>
+<g id="runner-1" data-box="640,445,320,140">
+<path d="M640 445 Q800 443 960 445 L960 585 Q800 587 640 585 Z" class="outline"/>
+<text x="664" y="489" class="heading">Runner 1</text>
+<text x="664" y="517" class="body">One job at a time.</text>
+<text x="664" y="543" class="body">Shares the 32 GB RAM.</text>
+</g>
+<g id="runner-2" data-box="1000,445,320,140">
+<path d="M1000 445 Q1160 443 1320 445 L1320 585 Q1160 587 1000 585 Z" class="outline"/>
+<text x="1024" y="489" class="heading">Runner 2</text>
+<text x="1024" y="517" class="body">One job at a time.</text>
+<text x="1024" y="543" class="body">Shares the 32 GB RAM.</text>
+</g>
+<g id="runner-3" data-box="1360,445,320,140">
+<path d="M1360 445 Q1520 443 1680 445 L1680 585 Q1520 587 1360 585 Z" class="outline"/>
+<text x="1384" y="489" class="heading">Runner 3</text>
+<text x="1384" y="517" class="body">One job at a time.</text>
+<text x="1384" y="543" class="body">Shares the 32 GB RAM.</text>
+</g>
+<g id="runner-4" data-box="640,650,320,140">
+<path d="M640 650 Q800 648 960 650 L960 790 Q800 792 640 790 Z" class="outline"/>
+<text x="664" y="694" class="heading">Runner 4</text>
+<text x="664" y="722" class="body">One job at a time.</text>
+<text x="664" y="748" class="body">Shares the 32 GB RAM.</text>
+</g>
+<g id="runner-5" data-box="1000,650,320,140">
+<path d="M1000 650 Q1160 648 1320 650 L1320 790 Q1160 792 1000 790 Z" class="outline"/>
+<text x="1024" y="694" class="heading">Runner 5</text>
+<text x="1024" y="722" class="body">One job at a time.</text>
+<text x="1024" y="748" class="body">Shares the 32 GB RAM.</text>
+</g>
+<text x="1380" y="695" class="heading accent">NOT FIVE MACHINES</text>
+<text x="1380" y="735" class="note">Leave memory for Linux.</text>
+<text x="1380" y="763" class="note">Reduce parallel builds</text>
+<text x="1380" y="791" class="note">if jobs need more RAM.</text>
+<path d="M480 320H600" class="link"/>
+<text x="520" y="302" class="note">jobs</text>
+<path d="M600 850H530V940H35V385H60" class="link"/>
+<text x="65" y="967" class="note">results sent back to GitHub</text>
+<text x="60" y="520" class="heading accent">ALWAYS AVAILABLE</text>
+<text x="60" y="565" class="body">The machine stays on between jobs.</text>
+<text x="60" y="595" class="body">Up to five runners can pick up work.</text>
+<text x="60" y="625" class="body">Extra jobs wait on GitHub.</text>
+<text x="60" y="655" class="body">No per-job machine startup delay.</text>
+<text x="60" y="755" class="heading accent">ONE MACHINE TO MAINTAIN</text>
+<text x="60" y="800" class="note">Keep its tools updated and disk clean.</text>
+<text x="60" y="830" class="note">A machine failure stops all five runners.</text>
+<text x="60" y="1015" class="heading accent">COST EXAMPLE • US East (N. Virginia) • USD • 300 jobs per month, about 20 minutes of work each</text>
+<g id="compute-cost" data-box="60,1060,530,210">
+<path d="M60 1060 Q325 1058 590 1060 L590 1270 Q325 1272 60 1270 Z" class="outline focus"/>
+<text x="84" y="1104" class="heading">About $274 per month</text>
+<text x="84" y="1132" class="body">Machine on all month: 730 h × $0.35904</text>
+<text x="84" y="1158" class="body">EC2 compute: $262.10</text>
+<text x="84" y="1184" class="body">100 GB disk: $8.00; public IP: $3.65</text>
+<text x="84" y="1210" class="body">Total: $273.75 before optional extras.</text>
+</g>
+<g id="idle-cost" data-box="635,1060,530,210">
+<path d="M635 1060 Q900 1058 1165 1060 L1165 1270 Q900 1272 635 1270 Z" class="outline"/>
+<text x="659" y="1104" class="heading">The bill continues while idle</text>
+<text x="659" y="1132" class="body">You pay for 730 hours even with few jobs.</text>
+<text x="659" y="1158" class="body">Stopping it outside work hours cuts compute.</text>
+<text x="659" y="1184" class="body">The saved disk still costs money while stopped.</text>
+<text x="659" y="1210" class="body">Backups and extra storage cost more.</text>
+</g>
+<g id="capacity-note" data-box="1210,1060,530,210">
+<path d="M1210 1060 Q1475 1058 1740 1060 L1740 1270 Q1475 1272 1210 1270 Z" class="outline"/>
+<text x="1234" y="1104" class="heading">Five runners share one machine</text>
+<text x="1234" y="1132" class="body">8 vCPU and 32 GB RAM in total.</text>
+<text x="1234" y="1158" class="body">Five light jobs may run together.</text>
+<text x="1234" y="1184" class="body">Heavy builds may need fewer active runners.</text>
+<text x="1234" y="1210" class="body">Tools and downloads can stay on disk.</text>
+</g>
+<text x="60" y="1315" class="note">Comparison note: job duration is an example, not a benchmark. Jobs sharing one machine can take longer than isolated jobs.</text>
+<text x="60" y="1345" class="note">Not included: coding-model/API fees, GitHub charges, large logs or output files, internet data transfer, tax and optional backups.</text>
+<text x="60" y="1375" class="note">Network assumption: public IP, no inbound ports open, and no paid NAT Gateway. The 100 GB disk is kept between jobs.</text>
+<text x="60" y="1405" class="note">EC2 rate: m8g.2xlarge Linux ARM64, $0.35904/hour, checked 2026-09-14. Disk: $0.08/GB-month; public IP: $0.005/hour.</text>
+<a href="https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.csv"><text x="60" y="1440" class="note">Price sources: AWS EC2</text></a><a href="https://aws.amazon.com/ebs/pricing/"><text x="340" y="1440" class="note">Disk storage</text></a><a href="https://aws.amazon.com/vpc/pricing/"><text x="530" y="1440" class="note">Public IP address</text></a>
+<path d="M60 1500H125" class="link"/>
+<text x="140" y="1505" class="note">job / service connection</text>
+<path d="M365 1500H430" class="link async"/>
+<text x="445" y="1505" class="note">job notification</text>
+<path d="M650 1488 Q667 1486 684 1488 L684 1512 Q667 1514 650 1512 Z" class="outline"/>
+<text x="700" y="1505" class="note">machine / service</text>
+<text x="60" y="1542" class="note">Proposed setup • a runner is the program that picks up and executes a GitHub Actions job.</text>
+<text x="60" y="1590" class="note">Fixed setup: the estimate covers the machine, disk and IP. Monitoring and backups depend on what you add.</text>
+<!-- Layout preflight: {"canvas":[1800,1660],"boxes":[{"id":"github","x":60,"y":250,"w":420,"h":170,"last":374},{"id":"machine","x":640,"y":245,"w":1060,"h":140,"last":343},{"id":"runner-1","x":640,"y":445,"w":320,"h":140,"last":543},{"id":"runner-2","x":1000,"y":445,"w":320,"h":140,"last":543},{"id":"runner-3","x":1360,"y":445,"w":320,"h":140,"last":543},{"id":"runner-4","x":640,"y":650,"w":320,"h":140,"last":748},{"id":"runner-5","x":1000,"y":650,"w":320,"h":140,"last":748},{"id":"compute-cost","x":60,"y":1060,"w":530,"h":210,"last":1210},{"id":"idle-cost","x":635,"y":1060,"w":530,"h":210,"last":1210},{"id":"capacity-note","x":1210,"y":1060,"w":530,"h":210,"last":1210}],"edges":["M480 320H600","M600 850H530V940H35V385H60","M60 1500H125","M365 1500H430"]} -->
+</svg>

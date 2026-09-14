@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1440" viewBox="0 0 1600 1440" role="img" aria-labelledby="title desc">
+<title id="title">Completion and EC2 cleanup</title>
+<desc id="desc">Proposed design, not deployed behavior. Save the outcome first, then remove the worker even when the job fails. The EC2 worker ends after publishing. Human PR review does not keep it running.</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10" fill="none" stroke="#ff4d00" stroke-width="2"/></marker>
+<style>text{font-family:"Comic Sans MS","Segoe Print",cursive,sans-serif;fill:#fff}.title{font-size:32px;font-weight:700}.heading{font-size:19px;font-weight:700}.body{font-size:15px}.note{font-size:15px}.accent{fill:#ff4d00}.box{fill:#1a1a1a;stroke:#fff;stroke-width:2;stroke-linejoin:round}.arrow{fill:none;stroke:#ff4d00;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow)}</style></defs>
+<rect width="1600" height="1440" fill="#1a1a1a"/>
+<text x="60" y="60" class="title">Completion and EC2 cleanup</text>
+<text x="60" y="96" class="body">Save the outcome first, then remove the worker even when the job fails.</text>
+<text x="60" y="135" class="note accent">PROPOSED DESIGN • Kotlin script + fresh EC2 + Ansible</text>
+<g id="step-0" data-box="550,180,500,140">
+<path class="box" d="M550 180 Q800 178 1050 180 L1050 320 Q800 322 550 320 Z"/>
+<text x="574" y="222" class="heading">1. Job reaches an outcome</text>
+<text x="574" y="252" class="body">Success, no change, failure or cancellation.</text>
+<text x="574" y="278" class="body">A rejected push is also a finished attempt.</text></g>
+<g id="step-1" data-box="550,390,500,140">
+<path class="box" d="M550 390 Q800 388 1050 390 L1050 530 Q800 532 550 530 Z"/>
+<text x="574" y="432" class="heading">2. Save the useful output</text>
+<text x="574" y="462" class="body">Upload logs, test results and any patch.</text>
+<text x="574" y="488" class="body">Record the published branch or PR link.</text></g>
+<g id="step-2" data-box="550,600,500,140">
+<path class="box" d="M550 600 Q800 598 1050 600 L1050 740 Q800 742 550 740 Z"/>
+<text x="574" y="642" class="heading">3. Report completion to control service</text>
+<text x="574" y="672" class="body">Authenticate and validate the assigned job.</text>
+<text x="574" y="698" class="body">Save the outcome before accepting cleanup.</text></g>
+<g id="step-3" data-box="550,810,500,140">
+<path class="box" d="M550 810 Q800 808 1050 810 L1050 950 Q800 952 550 950 Z"/>
+<text x="574" y="852" class="heading">4. Lambda requests termination</text>
+<text x="574" y="882" class="body">Find the instance from the saved job.</text>
+<text x="574" y="908" class="body">Retry until EC2 confirms termination.</text></g>
+<g id="step-4" data-box="550,1020,500,140">
+<path class="box" d="M550 1020 Q800 1018 1050 1020 L1050 1160 Q800 1162 550 1160 Z"/>
+<text x="574" y="1062" class="heading">5. Close the worker record</text>
+<text x="574" y="1092" class="body">Release its reserved capacity.</text>
+<text x="574" y="1118" class="body">Keep results for the chosen retention period.</text></g>
+<g id="alternate" data-box="1170,810,370,140">
+<path class="box" d="M1170 810 Q1355 808 1540 810 L1540 950 Q1355 952 1170 950 Z"/>
+<text x="1194" y="852" class="heading">Independent deadline check</text>
+<text x="1194" y="882" class="body">Find expired or abandoned workers.</text>
+<text x="1194" y="908" class="body">Terminate even without a callback.</text></g>
+<path class="arrow" d="M800 320V390"/>
+<path class="arrow" d="M800 530V600"/>
+<path class="arrow" d="M800 740V810"/>
+<path class="arrow" d="M800 950V1020"/>
+<path class="arrow" d="M1170 880H1050"/>
+<text x="1080" y="862" class="note">also</text>
+<path class="arrow" d="M60 1260H125"/><text x="145" y="1265" class="note">Next step or labeled alternate path</text>
+<text x="60" y="1320" class="note">The EC2 worker ends after publishing. Human PR review does not keep it running.</text>
+<a href="README.md"><text x="60" y="1370" class="note accent">Read the companion guide: README.md</text></a>
+<!-- Layout preflight: {"canvas":[1600,1440],"boxes":[{"id":"step-0","x":550,"y":180,"w":500,"h":140,"last":278},{"id":"step-1","x":550,"y":390,"w":500,"h":140,"last":488},{"id":"step-2","x":550,"y":600,"w":500,"h":140,"last":698},{"id":"step-3","x":550,"y":810,"w":500,"h":140,"last":908},{"id":"step-4","x":550,"y":1020,"w":500,"h":140,"last":1118},{"id":"alternate","x":1170,"y":810,"w":370,"h":140,"last":908}],"edges":["M800 320V390","M800 530V600","M800 740V810","M800 950V1020","M1170 880H1050"]} -->
+</svg>
