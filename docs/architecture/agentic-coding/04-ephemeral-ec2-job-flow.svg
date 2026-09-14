@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1920" viewBox="0 0 1600 1920" role="img" aria-labelledby="title desc"><title id="title">02 / A new machine for each job — how it works</title><desc id="desc">GitHub keeps the waiting list. A runner picks up a job and runs the coding agent, build or tests. Proposed reference architecture, not deployed configuration.</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10" fill="none" stroke="#ff4d00" stroke-width="2"/></marker>
+<style>text{font-family:"Comic Sans MS","Segoe Print",cursive,sans-serif;fill:#fff}.title{font-size:32px;font-weight:700}.body{font-size:17px}.heading{font-size:21px;font-weight:700}.note{font-size:15px}.accent{fill:#ff4d00}.outline{fill:#1a1a1a;stroke:#fff;stroke-width:2;stroke-linejoin:round}.focus{stroke:#ff4d00;stroke-width:2.5}.link{fill:none;stroke:#ff4d00;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow)}.async{stroke-dasharray:8 7}</style></defs><rect width="1600" height="1920" fill="#1a1a1a"/>
+<text x="60" y="60" class="title">02 / A new machine for each job — how it works</text>
+<text x="60" y="94" class="body">GitHub keeps the waiting list. A runner picks up a job and runs the coding agent, build or tests.</text>
+<g id="step-0" data-box="550,180,500,140">
+<path d="M550 180 Q800 178 1050 180 L1050 320 Q800 322 550 320 Z" class="outline focus"/>
+<text x="574" y="224" class="heading">1. A code change creates a job</text>
+<text x="574" y="252" class="body">GitHub adds the job to its waiting list.</text>
+<text x="574" y="278" class="body">No worker machine needs to be running yet.</text>
+</g>
+<g id="step-1" data-box="550,390,500,140">
+<path d="M550 390 Q800 388 1050 390 L1050 530 Q800 532 550 530 Z" class="outline focus"/>
+<text x="574" y="434" class="heading">2. GitHub sends a job notification</text>
+<text x="574" y="462" class="body">An AWS web address receives the webhook.</text>
+<text x="574" y="488" class="body">A small Lambda program checks it is genuine.</text>
+</g>
+<g id="step-2" data-box="550,600,500,140">
+<path d="M550 600 Q800 598 1050 600 L1050 740 Q800 742 550 740 Z" class="outline focus"/>
+<text x="574" y="644" class="heading">3. Start a machine if capacity allows</text>
+<text x="574" y="672" class="body">Check the job is still waiting and not already handled.</text>
+<text x="574" y="698" class="body">Example limit: five job machines at once.</text>
+</g>
+<g id="step-3" data-box="550,810,500,140">
+<path d="M550 810 Q800 808 1050 810 L1050 950 Q800 952 550 950 Z" class="outline focus"/>
+<text x="574" y="854" class="heading">4. Prepare the machine for this job</text>
+<text x="574" y="882" class="body">Start from an image with tools already installed.</text>
+<text x="574" y="908" class="body">Join GitHub as a runner using a short-lived token.</text>
+</g>
+<g id="step-4" data-box="550,1020,500,140">
+<path d="M550 1020 Q800 1018 1050 1020 L1050 1160 Q800 1162 550 1160 Z" class="outline focus"/>
+<text x="574" y="1064" class="heading">5. The runner picks up the waiting job</text>
+<text x="574" y="1092" class="body">The agent, build and tests use this whole machine.</text>
+<text x="574" y="1118" class="body">One job gets its own 8 vCPU and 32 GB RAM.</text>
+</g>
+<g id="step-5" data-box="550,1230,500,140">
+<path d="M550 1230 Q800 1228 1050 1230 L1050 1370 Q800 1372 550 1370 Z" class="outline focus"/>
+<text x="574" y="1274" class="heading">6. Save the result, then delete the machine</text>
+<text x="574" y="1302" class="body">Upload results; remove the runner from GitHub.</text>
+<text x="574" y="1328" class="body">Delete EC2 and its temporary disk after job exit.</text>
+</g>
+<g id="step-6" data-box="550,1440,500,140">
+<path d="M550 1440 Q800 1438 1050 1440 L1050 1580 Q800 1582 550 1580 Z" class="outline focus"/>
+<text x="574" y="1484" class="heading">7. Nothing running? No worker compute bill</text>
+<text x="574" y="1512" class="body">A scheduled check removes stuck or abandoned VMs.</text>
+<text x="574" y="1538" class="body">Small service and saved-image costs can remain.</text>
+</g>
+<path d="M800 320V390" class="link async"/>
+<path d="M800 530V600" class="link"/>
+<path d="M800 740V810" class="link"/>
+<path d="M800 950V1020" class="link"/>
+<path d="M800 1160V1230" class="link"/>
+<path d="M800 1370V1440" class="link"/>
+<g id="wait" data-box="1160,600,370,140">
+<path d="M1160 600 Q1345 598 1530 600 L1530 740 Q1345 742 1160 740 Z" class="outline"/>
+<text x="1184" y="644" class="heading">Already at the limit</text>
+<text x="1184" y="672" class="body">The job stays on GitHub's list.</text>
+<text x="1184" y="698" class="body">Try again when a machine finishes.</text>
+</g>
+<path d="M1050 670H1160" class="link"/>
+<text x="1085" y="652" class="note">wait</text>
+<text x="60" y="250" class="heading accent">WHAT YOU SET UP ONCE</text>
+<text x="60" y="295" class="note">A public address for GitHub notifications.</text>
+<text x="60" y="325" class="note">A small program to start and delete EC2.</text>
+<text x="60" y="355" class="note">An image with tools ready to use.</text>
+<text x="60" y="385" class="note">A way to join each new runner to GitHub.</text>
+<text x="60" y="720" class="heading accent">SEPARATE CAPACITY</text>
+<text x="60" y="765" class="note">Each job has its own 32 GB machine.</text>
+<text x="60" y="795" class="note">Five simultaneous jobs mean five VMs.</text>
+<text x="60" y="825" class="note">That is more capacity, and more cost</text>
+<text x="60" y="855" class="note">per hour while all five are running.</text>
+<text x="1160" y="1050" class="heading accent">IF A JOB FAILS</text>
+<text x="1160" y="1095" class="note">Report what happened if possible.</text>
+<text x="1160" y="1125" class="note">Still delete the job machine.</text>
+<text x="1160" y="1155" class="note">The scheduled check catches leftovers.</text>
+<path d="M60 1720H125" class="link"/>
+<text x="140" y="1725" class="note">job / service connection</text>
+<path d="M365 1720H430" class="link async"/>
+<text x="445" y="1725" class="note">job notification</text>
+<path d="M650 1708 Q667 1706 684 1708 L684 1732 Q667 1734 650 1732 Z" class="outline"/>
+<text x="700" y="1725" class="note">machine / service</text>
+<text x="60" y="1762" class="note">Proposed setup • a runner is the program that picks up and executes a GitHub Actions job.</text>
+<text x="60" y="1840" class="note">Startup example: allow two minutes per job with a prepared image; actual wait time varies.</text>
+<!-- Layout preflight: {"canvas":[1600,1920],"boxes":[{"id":"step-0","x":550,"y":180,"w":500,"h":140,"last":278},{"id":"step-1","x":550,"y":390,"w":500,"h":140,"last":488},{"id":"step-2","x":550,"y":600,"w":500,"h":140,"last":698},{"id":"step-3","x":550,"y":810,"w":500,"h":140,"last":908},{"id":"step-4","x":550,"y":1020,"w":500,"h":140,"last":1118},{"id":"step-5","x":550,"y":1230,"w":500,"h":140,"last":1328},{"id":"step-6","x":550,"y":1440,"w":500,"h":140,"last":1538},{"id":"wait","x":1160,"y":600,"w":370,"h":140,"last":698}],"edges":["M800 320V390","M800 530V600","M800 740V810","M800 950V1020","M800 1160V1230","M800 1370V1440","M1050 670H1160","M60 1720H125","M365 1720H430"]} -->
+</svg>

@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1740" viewBox="0 0 1600 1740" role="img" aria-labelledby="title desc"><title id="title">01 / Five runners on one machine — how jobs run</title><desc id="desc">GitHub keeps the waiting list. A runner picks up a job and runs the coding agent, build or tests. Proposed reference architecture, not deployed configuration.</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10" fill="none" stroke="#ff4d00" stroke-width="2"/></marker>
+<style>text{font-family:"Comic Sans MS","Segoe Print",cursive,sans-serif;fill:#fff}.title{font-size:32px;font-weight:700}.body{font-size:17px}.heading{font-size:21px;font-weight:700}.note{font-size:15px}.accent{fill:#ff4d00}.outline{fill:#1a1a1a;stroke:#fff;stroke-width:2;stroke-linejoin:round}.focus{stroke:#ff4d00;stroke-width:2.5}.link{fill:none;stroke:#ff4d00;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow)}.async{stroke-dasharray:8 7}</style></defs><rect width="1600" height="1740" fill="#1a1a1a"/>
+<text x="60" y="60" class="title">01 / Five runners on one machine — how jobs run</text>
+<text x="60" y="94" class="body">GitHub keeps the waiting list. A runner picks up a job and runs the coding agent, build or tests.</text>
+<g id="step-0" data-box="550,180,500,140">
+<path d="M550 180 Q800 178 1050 180 L1050 320 Q800 322 550 320 Z" class="outline focus"/>
+<text x="574" y="224" class="heading">1. A code change creates a job</text>
+<text x="574" y="252" class="body">GitHub adds the job to its waiting list.</text>
+<text x="574" y="278" class="body">The EC2 machine is already running.</text>
+</g>
+<g id="step-1" data-box="550,390,500,140">
+<path d="M550 390 Q800 388 1050 390 L1050 530 Q800 532 550 530 Z" class="outline focus"/>
+<text x="574" y="434" class="heading">2. Is one of the five runners free?</text>
+<text x="574" y="462" class="body">All five runner programs stay connected to GitHub.</text>
+<text x="574" y="488" class="body">Each runner can work on one job at a time.</text>
+</g>
+<g id="step-2" data-box="550,600,500,140">
+<path d="M550 600 Q800 598 1050 600 L1050 740 Q800 742 550 740 Z" class="outline focus"/>
+<text x="574" y="644" class="heading">3. A free runner picks up the job</text>
+<text x="574" y="672" class="body">The agent edits code, builds the app or runs tests.</text>
+<text x="574" y="698" class="body">Up to five jobs share the same CPU and memory.</text>
+</g>
+<g id="step-3" data-box="550,810,500,140">
+<path d="M550 810 Q800 808 1050 810 L1050 950 Q800 952 550 950 Z" class="outline focus"/>
+<text x="574" y="854" class="heading">4. Save the result in GitHub</text>
+<text x="574" y="882" class="body">Send the job result, logs and any output files.</text>
+<text x="574" y="908" class="body">A failed job also reports its result.</text>
+</g>
+<g id="step-4" data-box="550,1020,500,140">
+<path d="M550 1020 Q800 1018 1050 1020 L1050 1160 Q800 1162 550 1160 Z" class="outline focus"/>
+<text x="574" y="1064" class="heading">5. Clean this runner's working folder</text>
+<text x="574" y="1092" class="body">Remove job files; keep reusable tools and downloads.</text>
+<text x="574" y="1118" class="body">Each runner has its own working folder.</text>
+</g>
+<g id="step-5" data-box="550,1230,500,140">
+<path d="M550 1230 Q800 1228 1050 1230 L1050 1370 Q800 1372 550 1370 Z" class="outline focus"/>
+<text x="574" y="1274" class="heading">6. The runner is ready for another job</text>
+<text x="574" y="1302" class="body">The EC2 machine stays on, even if no jobs remain.</text>
+<text x="574" y="1328" class="body">You keep paying until you stop the machine.</text>
+</g>
+<path d="M800 320V390" class="link"/>
+<path d="M800 530V600" class="link"/>
+<text x="818" y="575" class="note">yes</text>
+<path d="M800 740V810" class="link"/>
+<path d="M800 950V1020" class="link"/>
+<path d="M800 1160V1230" class="link"/>
+<g id="wait" data-box="1160,390,370,140">
+<path d="M1160 390 Q1345 388 1530 390 L1530 530 Q1345 532 1160 530 Z" class="outline"/>
+<text x="1184" y="434" class="heading">All five are busy</text>
+<text x="1184" y="462" class="body">The job stays on GitHub's list.</text>
+<text x="1184" y="488" class="body">A free runner picks it up later.</text>
+</g>
+<path d="M1050 460H1160" class="link"/>
+<text x="1085" y="442" class="note">no</text>
+<text x="60" y="250" class="heading accent">WHAT YOU SET UP ONCE</text>
+<text x="60" y="295" class="note">One ARM EC2 machine with 32 GB RAM.</text>
+<text x="60" y="325" class="note">Five registered runner programs.</text>
+<text x="60" y="355" class="note">Separate job folders for each runner.</text>
+<text x="60" y="385" class="note">Java, Docker and agent tools.</text>
+<text x="60" y="720" class="heading accent">SHARED CAPACITY</text>
+<text x="60" y="765" class="note">32 GB belongs to the whole machine.</text>
+<text x="60" y="795" class="note">Allow room for Linux and background tools.</text>
+<text x="60" y="825" class="note">Five light jobs may fit; five heavy builds</text>
+<text x="60" y="855" class="note">may run slowly or run out of memory.</text>
+<text x="1160" y="1050" class="heading accent">WHEN THERE ARE NO JOBS</text>
+<text x="1160" y="1095" class="note">All five runner programs wait.</text>
+<text x="1160" y="1125" class="note">The EC2 machine stays on.</text>
+<text x="1160" y="1155" class="note">There is no startup delay next time.</text>
+<path d="M60 1530H125" class="link"/>
+<text x="140" y="1535" class="note">job / service connection</text>
+<path d="M365 1530H430" class="link async"/>
+<text x="445" y="1535" class="note">job notification</text>
+<path d="M650 1518 Q667 1516 684 1518 L684 1542 Q667 1544 650 1542 Z" class="outline"/>
+<text x="700" y="1535" class="note">machine / service</text>
+<text x="60" y="1572" class="note">Proposed setup • a runner is the program that picks up and executes a GitHub Actions job.</text>
+<text x="60" y="1650" class="note">A fixed monthly cost buys one shared machine. Five runners do not create five copies of its hardware.</text>
+<!-- Layout preflight: {"canvas":[1600,1740],"boxes":[{"id":"step-0","x":550,"y":180,"w":500,"h":140,"last":278},{"id":"step-1","x":550,"y":390,"w":500,"h":140,"last":488},{"id":"step-2","x":550,"y":600,"w":500,"h":140,"last":698},{"id":"step-3","x":550,"y":810,"w":500,"h":140,"last":908},{"id":"step-4","x":550,"y":1020,"w":500,"h":140,"last":1118},{"id":"step-5","x":550,"y":1230,"w":500,"h":140,"last":1328},{"id":"wait","x":1160,"y":390,"w":370,"h":140,"last":488}],"edges":["M800 320V390","M800 530V600","M800 740V810","M800 950V1020","M800 1160V1230","M1050 460H1160","M60 1530H125","M365 1530H430"]} -->
+</svg>

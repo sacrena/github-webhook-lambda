@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1660" viewBox="0 0 1800 1660" role="img" aria-labelledby="title desc"><title id="title">04 / Start a machine for a job, then delete it</title><desc id="desc">Architecture view • GitHub announces a waiting job • AWS starts a worker only when needed. Proposed reference architecture, not deployed configuration.</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10" fill="none" stroke="#ff4d00" stroke-width="2"/></marker>
+<style>text{font-family:"Comic Sans MS","Segoe Print",cursive,sans-serif;fill:#fff}.title{font-size:32px;font-weight:700}.body{font-size:17px}.heading{font-size:21px;font-weight:700}.note{font-size:15px}.accent{fill:#ff4d00}.outline{fill:#1a1a1a;stroke:#fff;stroke-width:2;stroke-linejoin:round}.focus{stroke:#ff4d00;stroke-width:2.5}.link{fill:none;stroke:#ff4d00;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow)}.async{stroke-dasharray:8 7}</style></defs><rect width="1800" height="1660" fill="#1a1a1a"/>
+<text x="60" y="60" class="title">04 / Start a machine for a job, then delete it</text>
+<text x="60" y="94" class="body">Architecture view • GitHub announces a waiting job • AWS starts a worker only when needed.</text>
+<g id="github" data-box="60,240,360,170">
+<path d="M60 240 Q240 238 420 240 L420 410 Q240 412 60 410 Z" class="outline focus"/>
+<text x="84" y="284" class="heading">GitHub</text>
+<text x="84" y="312" class="body">Holds jobs until a runner is ready.</text>
+<text x="84" y="338" class="body">Sends a job-ready notification.</text>
+<text x="84" y="364" class="body">Keeps results and output files.</text>
+</g>
+<path d="M480 170 Q755 168 1030 170 L1030 890 Q755 892 480 890 Z" class="outline"/>
+<text x="500" y="202" class="heading accent">AWS • SMALL START / STOP SERVICE</text>
+<g id="listener" data-box="520,245,470,170">
+<path d="M520 245 Q755 243 990 245 L990 415 Q755 417 520 415 Z" class="outline focus"/>
+<text x="544" y="289" class="heading">Notification listener</text>
+<text x="544" y="317" class="body">A public AWS address receives the message.</text>
+<text x="544" y="343" class="body">A small Lambda program checks the job.</text>
+<text x="544" y="369" class="body">It asks AWS to start a machine.</text>
+</g>
+<g id="manager" data-box="520,500,470,160">
+<path d="M520 500 Q755 498 990 500 L990 660 Q755 662 520 660 Z" class="outline"/>
+<text x="544" y="544" class="heading">Machine manager</text>
+<text x="544" y="572" class="body">Limit spending: allow up to five workers.</text>
+<text x="544" y="598" class="body">Join each new runner to GitHub.</text>
+<text x="544" y="624" class="body">Delete finished or abandoned machines.</text>
+</g>
+<text x="520" y="735" class="heading accent">STAYS AVAILABLE WITHOUT A WORKER</text>
+<text x="520" y="780" class="note">These small AWS services react to messages.</text>
+<text x="520" y="808" class="note">You do not run a full EC2 just to listen.</text>
+<path d="M1110 170 Q1425 168 1740 170 L1740 890 Q1425 892 1110 890 Z" class="outline"/>
+<text x="1130" y="202" class="heading accent">AWS • 0–5 TEMPORARY JOB MACHINES</text>
+<g id="machine" data-box="1150,245,550,170">
+<path d="M1150 245 Q1425 243 1700 245 L1700 415 Q1425 417 1150 415 Z" class="outline focus"/>
+<text x="1174" y="289" class="heading">Each job gets its own EC2 machine</text>
+<text x="1174" y="317" class="body">8 vCPU + 32 GB RAM + 100 GB disk.</text>
+<text x="1174" y="343" class="body">One runner handles one job.</text>
+<text x="1174" y="369" class="body">Five active jobs can use five separate VMs.</text>
+</g>
+<g id="tools" data-box="1150,500,550,160">
+<path d="M1150 500 Q1425 498 1700 500 L1700 660 Q1425 662 1150 660 Z" class="outline"/>
+<text x="1174" y="544" class="heading">Ready-made image with tools</text>
+<text x="1174" y="572" class="body">Linux, Java, Docker and agent tools are ready.</text>
+<text x="1174" y="598" class="body">The runner joins GitHub and picks up work.</text>
+<text x="1174" y="624" class="body">Job files stay on a temporary disk.</text>
+</g>
+<text x="1150" y="735" class="heading accent">DELETE AFTER THE JOB</text>
+<text x="1150" y="780" class="note">Upload results before removing the machine.</text>
+<text x="1150" y="808" class="note">Delete its disk too; stop paying for worker time.</text>
+<path d="M420 325H520" class="link async"/>
+<text x="425" y="303" class="note">webhook</text>
+<path d="M990 335H1150" class="link"/>
+<text x="998" y="315" class="note">start machine</text>
+<path d="M755 415V500" class="link"/>
+<text x="770" y="460" class="note">track and clean up</text>
+<path d="M990 580H1110" class="link"/>
+<text x="995" y="558" class="note">delete when done</text>
+<path d="M1110 850H1065V940H35V375H60" class="link"/>
+<text x="70" y="967" class="note">runner connects to GitHub to pick up work and send results</text>
+<text x="60" y="520" class="heading accent">NO JOB MACHINES WHEN IDLE</text>
+<text x="60" y="565" class="note">There is a short startup wait.</text>
+<text x="60" y="595" class="note">Example: allow two minutes.</text>
+<text x="60" y="625" class="note">A prepared image avoids</text>
+<text x="60" y="655" class="note">installing tools for every job.</text>
+<text x="60" y="765" class="heading accent">MORE PARTS TO SET UP</text>
+<text x="60" y="810" class="note">The manager must handle cleanup.</text>
+<text x="60" y="1015" class="heading accent">COST EXAMPLE • US East (N. Virginia) • USD • 300 jobs per month, about 20 minutes of work each</text>
+<g id="compute-cost" data-box="60,1060,530,210">
+<path d="M60 1060 Q325 1058 590 1060 L590 1270 Q325 1272 60 1270 Z" class="outline focus"/>
+<text x="84" y="1104" class="heading">About $44–50 per month</text>
+<text x="84" y="1132" class="body">300 × (20 min work + 2 min startup) = 110 h</text>
+<text x="84" y="1158" class="body">EC2 compute: $39.49; temporary disks: $1.21</text>
+<text x="84" y="1184" class="body">Public IPs: $0.55; small services: allow $3–8</text>
+<text x="84" y="1210" class="body">Estimated total: $44.25–49.25.</text>
+</g>
+<g id="idle-cost" data-box="635,1060,530,210">
+<path d="M635 1060 Q900 1058 1165 1060 L1165 1270 Q900 1272 635 1270 Z" class="outline"/>
+<text x="659" y="1104" class="heading">Pay for machine time actually used</text>
+<text x="659" y="1132" class="body">Add time across all job machines.</text>
+<text x="659" y="1158" class="body">Five machines for 1 hour = 5 billed hours.</text>
+<text x="659" y="1184" class="body">Delete temporary disks after every job.</text>
+<text x="659" y="1210" class="body">Small service and saved-image costs remain.</text>
+</g>
+<g id="capacity-note" data-box="1210,1060,530,210">
+<path d="M1210 1060 Q1475 1058 1740 1060 L1740 1270 Q1475 1272 1210 1270 Z" class="outline"/>
+<text x="1234" y="1104" class="heading">Each job gets a whole machine</text>
+<text x="1234" y="1132" class="body">8 vCPU and 32 GB RAM per job.</text>
+<text x="1234" y="1158" class="body">Up to five jobs here means up to five VMs.</text>
+<text x="1234" y="1184" class="body">Startup adds a short wait before work begins.</text>
+<text x="1234" y="1210" class="body">Longer jobs increase the estimate.</text>
+</g>
+<text x="60" y="1315" class="note">Comparison note: job duration is an example, not a benchmark. Jobs sharing one machine can take longer than isolated jobs.</text>
+<text x="60" y="1345" class="note">Not included: coding-model/API fees, GitHub charges, large logs or output files, internet data transfer, tax and optional backups.</text>
+<text x="60" y="1375" class="note">Network assumption: public IP, no inbound ports open, and no paid NAT Gateway. Disk size: 100 GB; deleted after temporary jobs.</text>
+<text x="60" y="1405" class="note">EC2 rate: m8g.2xlarge Linux ARM64, $0.35904/hour, checked 2026-09-14. Disk: $0.08/GB-month; public IP: $0.005/hour.</text>
+<a href="https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.csv"><text x="60" y="1440" class="note">Price sources: AWS EC2</text></a><a href="https://aws.amazon.com/ebs/pricing/"><text x="340" y="1440" class="note">Disk storage</text></a><a href="https://aws.amazon.com/vpc/pricing/"><text x="530" y="1440" class="note">Public IP address</text></a>
+<path d="M60 1500H125" class="link"/>
+<text x="140" y="1505" class="note">job / service connection</text>
+<path d="M365 1500H430" class="link async"/>
+<text x="445" y="1505" class="note">job notification</text>
+<path d="M650 1488 Q667 1486 684 1488 L684 1512 Q667 1514 650 1512 Z" class="outline"/>
+<text x="700" y="1505" class="note">machine / service</text>
+<text x="60" y="1542" class="note">Proposed setup • a runner is the program that picks up and executes a GitHub Actions job.</text>
+<text x="60" y="1590" class="note">The $3–8 allowance covers the listener, saved machine image, credentials, job tracking and light logging. It is not a quoted AWS package.</text>
+<!-- Layout preflight: {"canvas":[1800,1660],"boxes":[{"id":"github","x":60,"y":240,"w":360,"h":170,"last":364},{"id":"listener","x":520,"y":245,"w":470,"h":170,"last":369},{"id":"manager","x":520,"y":500,"w":470,"h":160,"last":624},{"id":"machine","x":1150,"y":245,"w":550,"h":170,"last":369},{"id":"tools","x":1150,"y":500,"w":550,"h":160,"last":624},{"id":"compute-cost","x":60,"y":1060,"w":530,"h":210,"last":1210},{"id":"idle-cost","x":635,"y":1060,"w":530,"h":210,"last":1210},{"id":"capacity-note","x":1210,"y":1060,"w":530,"h":210,"last":1210}],"edges":["M420 325H520","M990 335H1150","M755 415V500","M990 580H1110","M1110 850H1065V940H35V375H60","M60 1500H125","M365 1500H430"]} -->
+</svg>
