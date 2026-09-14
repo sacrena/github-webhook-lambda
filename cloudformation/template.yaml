@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Minimal GitHub webhook receiver that logs PR and issue events.
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: Existing S3 bucket in this region containing the Lambda ZIP.
+  CodeKey:
+    Type: String
+    Description: S3 key of the Lambda ZIP (use a new key for each code update).
+  WebhookSecret:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: Shared secret configured in the GitHub webhook.
+
+Resources:
+  WebhookRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: WriteWebhookLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt WebhookLogs.Arn
+
+  WebhookLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+
+  WebhookFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role: !GetAtt WebhookRole.Arn
+      MemorySize: 128
+      Timeout: 10
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Environment:
+        Variables:
+          WEBHOOK_SECRET: !Ref WebhookSecret
+      LoggingConfig:
+        LogGroup: !Ref WebhookLogs
+
+  WebhookUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt WebhookFunction.Arn
+      AuthType: NONE
+
+  AllowUrlAccess:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WebhookFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+  AllowUrlInvocation:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WebhookFunction
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      InvokedViaFunctionUrl: true
+
+Outputs:
+  WebhookUrl:
+    Description: GitHub webhook payload URL.
+    Value: !GetAtt WebhookUrl.FunctionUrl
+  LogGroup:
+    Value: !Ref WebhookLogs
