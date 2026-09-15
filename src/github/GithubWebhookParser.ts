@@ -1,7 +1,13 @@
+import { log } from "../shared/Logger.js";
 import type {
-  GitHubContentPayload, GitHubIssueLikePayload, GitHubIssuePayload,
-  GitHubPullRequestPayload, GitHubCommentPayload, GitHubUserPayload,
-  GitHubRepositoryPayload, GitHubDelivery,
+  GitHubContentPayload,
+  GitHubIssueLikePayload,
+  GitHubIssuePayload,
+  GitHubPullRequestPayload,
+  GitHubCommentPayload,
+  GitHubUserPayload,
+  GitHubRepositoryPayload,
+  GitHubDelivery,
 } from "./GithubTypes.js";
 
 /**
@@ -34,9 +40,12 @@ function isNullableString(value: unknown): value is string | null {
  * Extra account metadata has no effect on whether validation succeeds.
  */
 function isUser(value: unknown): value is GitHubUserPayload {
-  return isRecord(value) && typeof value.id === "number"
-    && typeof value.login === "string"
-    && (value.html_url === undefined || typeof value.html_url === "string");
+  return (
+    isRecord(value) &&
+    typeof value.id === "number" &&
+    typeof value.login === "string" &&
+    (value.html_url === undefined || typeof value.html_url === "string")
+  );
 }
 
 /**
@@ -47,9 +56,14 @@ function isUser(value: unknown): value is GitHubUserPayload {
  * or looking up the repository through an external API.
  */
 function isRepository(value: unknown): value is GitHubRepositoryPayload {
-  return isRecord(value) && typeof value.id === "number"
-    && typeof value.name === "string" && typeof value.full_name === "string"
-    && typeof value.html_url === "string" && typeof value.private === "boolean";
+  return (
+    isRecord(value) &&
+    typeof value.id === "number" &&
+    typeof value.name === "string" &&
+    typeof value.full_name === "string" &&
+    typeof value.html_url === "string" &&
+    typeof value.private === "boolean"
+  );
 }
 
 /**
@@ -60,10 +74,15 @@ function isRepository(value: unknown): value is GitHubRepositoryPayload {
  * URL and timestamp strings are copied without semantic validation.
  */
 function isContent(value: unknown): value is GitHubContentPayload {
-  return isRecord(value) && typeof value.id === "number"
-    && isNullableString(value.body) && typeof value.html_url === "string"
-    && isUser(value.user) && typeof value.created_at === "string"
-    && typeof value.updated_at === "string";
+  return (
+    isRecord(value) &&
+    typeof value.id === "number" &&
+    isNullableString(value.body) &&
+    typeof value.html_url === "string" &&
+    isUser(value.user) &&
+    typeof value.created_at === "string" &&
+    typeof value.updated_at === "string"
+  );
 }
 
 /**
@@ -74,9 +93,14 @@ function isContent(value: unknown): value is GitHubContentPayload {
  * because the endpoint preserves them rather than filtering actions.
  */
 function isIssueLike(value: unknown): value is GitHubIssueLikePayload {
-  return isRecord(value) && isContent(value) && typeof value.number === "number"
-    && typeof value.title === "string" && typeof value.state === "string"
-    && isNullableString(value.closed_at);
+  return (
+    isRecord(value) &&
+    isContent(value) &&
+    typeof value.number === "number" &&
+    typeof value.title === "string" &&
+    typeof value.state === "string" &&
+    isNullableString(value.closed_at)
+  );
 }
 
 /**
@@ -87,12 +111,18 @@ function isIssueLike(value: unknown): value is GitHubIssueLikePayload {
  * fields because extraction uses only its presence to classify a PR.
  */
 function isIssue(value: unknown): value is GitHubIssuePayload {
-  return isRecord(value) && isIssueLike(value)
-    && Array.isArray(value.labels)
-    && value.labels.every((label: unknown) => isRecord(label) && typeof label.name === "string")
-    && Array.isArray(value.assignees) && value.assignees.every(isUser)
-    && typeof value.comments === "number"
-    && (value.pull_request === undefined || isRecord(value.pull_request));
+  return (
+    isRecord(value) &&
+    isIssueLike(value) &&
+    Array.isArray(value.labels) &&
+    value.labels.every(
+      (label: unknown) => isRecord(label) && typeof label.name === "string",
+    ) &&
+    Array.isArray(value.assignees) &&
+    value.assignees.every(isUser) &&
+    typeof value.comments === "number" &&
+    (value.pull_request === undefined || isRecord(value.pull_request))
+  );
 }
 
 /**
@@ -103,11 +133,19 @@ function isIssue(value: unknown): value is GitHubIssuePayload {
  * The check applies equally to PR events and inline review comments.
  */
 function isPullRequest(value: unknown): value is GitHubPullRequestPayload {
-  return isRecord(value) && isIssueLike(value)
-    && typeof value.draft === "boolean" && typeof value.merged === "boolean"
-    && [value.head, value.base].every((branch: unknown) =>
-      isRecord(branch) && typeof branch.ref === "string" && typeof branch.sha === "string")
-    && isNullableString(value.merged_at);
+  return (
+    isRecord(value) &&
+    isIssueLike(value) &&
+    typeof value.draft === "boolean" &&
+    typeof value.merged === "boolean" &&
+    [value.head, value.base].every(
+      (branch: unknown) =>
+        isRecord(branch) &&
+        typeof branch.ref === "string" &&
+        typeof branch.sha === "string",
+    ) &&
+    isNullableString(value.merged_at)
+  );
 }
 
 /**
@@ -118,10 +156,17 @@ function isPullRequest(value: unknown): value is GitHubPullRequestPayload {
  * Present fields of the wrong type fail instead of reaching the mapper.
  */
 function isComment(value: unknown): value is GitHubCommentPayload {
-  return isRecord(value) && isContent(value) && typeof value.body === "string"
-    && [value.path, value.diff_hunk, value.commit_id].every(
-      (field: unknown) => field === undefined || typeof field === "string")
-    && (value.position === undefined || value.position === null || typeof value.position === "number");
+  return (
+    isRecord(value) &&
+    isContent(value) &&
+    typeof value.body === "string" &&
+    [value.path, value.diff_hunk, value.commit_id].every(
+      (field: unknown) => field === undefined || typeof field === "string",
+    ) &&
+    (value.position === undefined ||
+      value.position === null ||
+      typeof value.position === "number")
+  );
 }
 
 /**
@@ -134,14 +179,33 @@ function isComment(value: unknown): value is GitHubCommentPayload {
  * @returns A discriminated delivery, or undefined for an unsupported event.
  * @throws {Error} When a supported event lacks valid consumed fields.
  */
-export function parseGitHubDelivery(sourceEvent: string, payload: unknown): GitHubDelivery | undefined {
-  if (!["issues", "pull_request", "issue_comment", "pull_request_review_comment"].includes(sourceEvent))
+export function parseGitHubDelivery(
+  sourceEvent: string,
+  payload: unknown,
+): GitHubDelivery | undefined {
+  log("debug", "github.payload.validating", { sourceEvent });
+  if (
+    ![
+      "issues", "pull_request",
+      "issue_comment", "pull_request_review_comment",
+    ].includes(sourceEvent)
+  )
     return undefined;
-  if (!isRecord(payload) || typeof payload.action !== "string"
-    || !isRepository(payload.repository) || !isUser(payload.sender))
+  if (
+    !isRecord(payload) ||
+    typeof payload.action !== "string" ||
+    !isRepository(payload.repository) ||
+    !isUser(payload.sender)
+  ) {
+    log("debug", "github.payload.context_invalid", { sourceEvent });
     throw new Error("Invalid GitHub delivery context");
+  }
 
-  const base = { action: payload.action, repository: payload.repository, sender: payload.sender };
+  const base = {
+    action: payload.action,
+    repository: payload.repository,
+    sender: payload.sender,
+  };
   switch (sourceEvent) {
     case "issues":
       if (isIssue(payload.issue))
@@ -149,15 +213,29 @@ export function parseGitHubDelivery(sourceEvent: string, payload: unknown): GitH
       break;
     case "pull_request":
       if (isPullRequest(payload.pull_request))
-        return { sourceEvent, payload: { ...base, pull_request: payload.pull_request } };
+        return {
+          sourceEvent,
+          payload: { ...base, pull_request: payload.pull_request },
+        };
       break;
     case "issue_comment":
       if (isIssue(payload.issue) && isComment(payload.comment))
-        return { sourceEvent, payload: { ...base, issue: payload.issue, comment: payload.comment } };
+        return {
+          sourceEvent,
+          payload: { ...base, issue: payload.issue, comment: payload.comment },
+        };
       break;
     case "pull_request_review_comment":
       if (isPullRequest(payload.pull_request) && isComment(payload.comment))
-        return { sourceEvent, payload: { ...base, pull_request: payload.pull_request, comment: payload.comment } };
+        return {
+          sourceEvent,
+          payload: {
+            ...base,
+            pull_request: payload.pull_request,
+            comment: payload.comment,
+          },
+        };
   }
+  log("debug", "github.payload.content_invalid", { sourceEvent });
   throw new Error("Invalid GitHub event content");
 }
