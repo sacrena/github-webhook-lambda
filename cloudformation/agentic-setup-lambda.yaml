@@ -11,8 +11,23 @@ Parameters:
   CodeVersion:
     Type: String
     Description: Version ID of the Lambda ZIP artifact in S3.
+  GitHubWebhookSecretValue:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+    Description: Secret GitHub uses to sign webhook deliveries.
 
 Resources:
+  GitHubWebhookSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: agentic-setup-github-webhook-secret
+      Description: Shared secret used to validate incoming GitHub webhooks.
+      SecretString: !Ref GitHubWebhookSecretValue
+      Tags:
+        - Key: Name
+          Value: agentic-setup-github-webhook-secret
+
   PingFunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -27,6 +42,14 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: read-github-webhook-secret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref GitHubWebhookSecret
       Tags:
         - Key: Name
           Value: agentic-setup-lambda-role
@@ -43,6 +66,9 @@ Resources:
         S3Bucket: !Ref CodeBucket
         S3Key: !Ref CodeKey
         S3ObjectVersion: !Ref CodeVersion
+      Environment:
+        Variables:
+          GITHUB_WEBHOOK_SECRET: !Sub '{{resolve:secretsmanager:${GitHubWebhookSecret}:SecretString::AWSCURRENT}}'
       Tags:
         - Key: Name
           Value: agentic-setup-lambda
