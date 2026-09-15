@@ -1,13 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { handler } from "../dist/index.js";
+import { handlePing } from "../../dist/ping/PingEndpoint.js";
 
-test("GET /ping returns a JSON pong response", async () => {
-  const response = await handler({
-    rawPath: "/ping",
-    requestContext: { http: { method: "GET" } },
-  });
+test("handlePing returns the health-check response", () => {
+  const response = handlePing();
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.headers["content-type"], "application/json");
