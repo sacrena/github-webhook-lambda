@@ -11,7 +11,7 @@ Small TypeScript Lambda with no runtime dependencies. Plain CloudFormation creat
 | `issue_comment` | Issue or PR conversation comment |
 | `pull_request_review_comment` | Inline PR review comment |
 
-The webhook response contains the extracted data. There is no signature verification, job processing, storage, or deduplication. PR review submissions (`pull_request_review`) are not comment events handled by this version.
+GitHub deliveries must include a valid `X-Hub-Signature-256` HMAC-SHA256 signature calculated with the configured webhook secret. The webhook response contains extracted data; there is no job processing, storage, or deduplication. PR review submissions (`pull_request_review`) are not comment events handled by this version.
 
 ## Build and deploy
 
@@ -33,19 +33,18 @@ ARTIFACT_BUCKET=$(aws cloudformation describe-stacks \
 VERSION=$(node -p "require('./package.json').version")
 CODE_KEY="v$VERSION/lambda.zip"
 
-OBJECT_VERSION=$(aws s3api put-object \
+aws s3api put-object \
   --bucket "$ARTIFACT_BUCKET" \
   --key "$CODE_KEY" \
-  --body "output/v$VERSION/lambda.zip" \
-  --query VersionId --output text)
+  --body "output/v$VERSION/lambda.zip"
+GITHUB_WEBHOOK_SECRET='choose-a-secret-on-first-deployment'
 aws cloudformation deploy \
   --stack-name agentic-setup-lambda \
   --template-file cloudformation/agentic-setup-lambda.yaml \
-  --capabilities CAPABILITY_IAM \
+  --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    CodeBucket="$ARTIFACT_BUCKET" \
     CodeKey="$CODE_KEY" \
-    CodeVersion="$OBJECT_VERSION"
+    GitHubWebhookSecretValue="$GITHUB_WEBHOOK_SECRET"
 
 aws cloudformation describe-stacks --stack-name agentic-setup-lambda \
   --query 'Stacks[0].Outputs' --output table
