@@ -1,0 +1,45 @@
+### Submit a harmless, valid GitHub issues payload in the selected environment.
+POST {{baseUrl}}/github/webhooks
+Content-Type: application/json
+X-GitHub-Event: issues
+
+{
+  "action": "opened",
+  "repository": {
+    "id": 1001,
+    "name": "example-repository",
+    "full_name": "example-owner/example-repository",
+    "html_url": "https://github.com/example-owner/example-repository",
+    "private": false
+  },
+  "sender": {
+    "id": 2001,
+    "login": "example-sender"
+  },
+  "issue": {
+    "id": 3001,
+    "number": 1,
+    "title": "Example issue",
+    "body": "Webhook smoke-test payload",
+    "state": "open",
+    "html_url": "https://github.com/example-owner/example-repository/issues/1",
+    "user": {
+      "id": 2002,
+      "login": "example-author"
+    },
+    "labels": [],
+    "assignees": [],
+    "comments": 0,
+    "created_at": "2026-09-15T00:00:00Z",
+    "updated_at": "2026-09-15T00:00:00Z",
+    "closed_at": null
+  }
+}
+
+> {%
+  client.test("acknowledges and normalizes the issue delivery", () => {
+    client.assert(response.status === 202, "expected HTTP 202");
+    client.assert(response.body.webhook.type === "issue", "expected issue webhook");
+    client.assert(response.body.webhook.issue.number === 1, "expected issue number");
+  });
+%}

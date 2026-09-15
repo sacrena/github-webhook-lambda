@@ -1,14 +1,14 @@
 {
   "name": "ping-lambda",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test test/index.test.mjs",
-    "package": "npm run build && artifact_version=$(node -p \"require('./package.json').version\") && mkdir -p \"output/v$artifact_version\" && zip -j \"output/v$artifact_version/lambda.zip\" dist/index.js",
-    "validate": "npm test && aws cloudformation validate-template --profile \"${AWS_PROFILE:-sso-local-profile}\" --region \"${AWS_REGION:-us-east-1}\" --template-body file://cloudformation/agentic-setup-lambda.yaml",
-    "code:deploy": "npm run --silent package >/dev/null && artifact_version=$(node -p \"require('./package.json').version\") && artifact_bucket=$(aws cloudformation describe-stacks --profile \"${AWS_PROFILE:-sso-local-profile}\" --region \"${AWS_REGION:-us-east-1}\" --stack-name agentic-setup-s3 --query \"Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue\" --output text) && aws s3api put-object --profile \"${AWS_PROFILE:-sso-local-profile}\" --region \"${AWS_REGION:-us-east-1}\" --bucket \"$artifact_bucket\" --key \"v$artifact_version/lambda.zip\" --body \"output/v$artifact_version/lambda.zip\" --query VersionId --output text",
-    "lambda:deploy": "npm run validate && artifact_version=$(node -p \"require('./package.json').version\") && artifact_bucket=$(aws cloudformation describe-stacks --profile \"${AWS_PROFILE:-sso-local-profile}\" --region \"${AWS_REGION:-us-east-1}\" --stack-name agentic-setup-s3 --query \"Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue\" --output text) && object_version=$(npm run --silent code:deploy) && aws cloudformation deploy --profile \"${AWS_PROFILE:-sso-local-profile}\" --region \"${AWS_REGION:-us-east-1}\" --stack-name agentic-setup-lambda --template-file cloudformation/agentic-setup-lambda.yaml --capabilities CAPABILITY_NAMED_IAM --parameter-overrides CodeBucket=\"$artifact_bucket\" CodeKey=\"v$artifact_version/lambda.zip\" CodeVersion=\"$object_version\""
+    "test": "npm run build && node --test test/*.test.mjs test/*/*.test.mjs",
+    "package": "node scripts/LambdaPackage.mjs",
+    "validate": "node scripts/LambdaValidation.mjs",
+    "code:deploy": "node scripts/LambdaCodeDeployment.mjs",
+    "lambda:deploy": "node scripts/LambdaDeployment.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
