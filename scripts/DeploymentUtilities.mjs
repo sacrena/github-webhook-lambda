@@ -2,9 +2,13 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { log, withLogContext } from "../src/shared/Logger.js";
+
+export { log } from "../src/shared/Logger.js";
 
 export const repositoryRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)), "..",
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
 );
 
 export const awsSettings = {
@@ -58,13 +62,17 @@ export function artifactLocations(version) {
  * @throws If the AWS CLI lookup fails.
  */
 export function artifactBucket() {
-  return run("aws", [
-    "cloudformation", "describe-stacks",
-    "--profile", awsSettings.profile, "--region", awsSettings.region,
-    "--stack-name", "agentic-setup-s3",
-    "--query", "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue",
-    "--output", "text",
-  ], { stdio: ["ignore", "pipe", "inherit"] }).trim();
+  return run(
+    "aws",
+    [
+      "cloudformation", "describe-stacks",
+      "--profile", awsSettings.profile, "--region", awsSettings.region,
+      "--stack-name", "agentic-setup-s3",
+      "--query", "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue",
+      "--output", "text",
+    ],
+    { stdio: ["ignore", "pipe", "inherit"] },
+  ).trim();
 }
 
 /**
@@ -81,8 +89,48 @@ export function artifactBucket() {
  * @throws If the command cannot start or exits unsuccessfully.
  */
 export function run(command, argumentsList, options = {}) {
-  return execFileSync(command, argumentsList, {
-    cwd: repositoryRoot, encoding: "utf8",
-    stdio: "inherit", ...options,
+  const started = performance.now();
+  log("debug", "command.started", { command });
+  try {
+    const output = execFileSync(command, argumentsList, {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      stdio: "inherit",
+      ...options,
+    });
+    log("debug", "command.completed", { command, durationMs: performance.now() - started });
+    return output;
+  } catch (error) {
+    log("error", "command.failed", {
+      command, durationMs: performance.now() - started,
+      exitCode: typeof error.status === "number" ? error.status : undefined,
+      code: typeof error.code === "string" ? error.code : undefined,
+    });
+    throw error;
+  }
+}
+
+/**
+ * Runs a synchronous deployment stage with consistent lifecycle diagnostics.
+ * Script entry points use this boundary to report local and subprocess failures
+ * without printing raw exception messages that may contain secret arguments.
+ * Individual commands retain their configured stdout and stderr behavior.
+ * A failed stage sets the process exit code to one so parent workflows stop;
+ * successful stages retain the existing exit code and return no result.
+ *
+ * @param {string} workflow Stable stage name attached to every nested log.
+ * @param {() => void} operation Synchronous stage implementation.
+ */
+export function runWorkflow(workflow, operation) {
+  withLogContext({ workflow }, () => {
+    const started = performance.now();
+    log("info", "workflow.started");
+    try {
+      operation();
+      log("info", "workflow.completed", { durationMs: performance.now() - started });
+    } catch {
+      log("error", "workflow.failed", { durationMs: performance.now() - started });
+      process.exitCode = 1;
+    }
   });
 }
