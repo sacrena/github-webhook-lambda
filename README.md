@@ -33,14 +33,19 @@ ARTIFACT_BUCKET=$(aws cloudformation describe-stacks \
 VERSION=$(node -p "require('./package.json').version")
 CODE_KEY="v$VERSION/lambda.zip"
 
-aws s3 cp "output/v$VERSION/lambda.zip" "s3://$ARTIFACT_BUCKET/$CODE_KEY"
+OBJECT_VERSION=$(aws s3api put-object \
+  --bucket "$ARTIFACT_BUCKET" \
+  --key "$CODE_KEY" \
+  --body "output/v$VERSION/lambda.zip" \
+  --query VersionId --output text)
 aws cloudformation deploy \
   --stack-name agentic-setup-lambda \
   --template-file cloudformation/agentic-setup-lambda.yaml \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
     CodeBucket="$ARTIFACT_BUCKET" \
-    CodeKey="$CODE_KEY"
+    CodeKey="$CODE_KEY" \
+    CodeVersion="$OBJECT_VERSION"
 
 aws cloudformation describe-stacks --stack-name agentic-setup-lambda \
   --query 'Stacks[0].Outputs' --output table

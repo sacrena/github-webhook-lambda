@@ -8,6 +8,9 @@ Parameters:
   CodeKey:
     Type: String
     Description: Object key for the Lambda ZIP artifact.
+  CodeVersion:
+    Type: String
+    Description: Version ID of the Lambda ZIP artifact in S3.
   WebhookSecret:
     Type: String
     NoEcho: true
@@ -52,6 +55,7 @@ Resources:
       Code:
         S3Bucket: !Ref CodeBucket
         S3Key: !Ref CodeKey
+        S3ObjectVersion: !Ref CodeVersion
       Environment:
         Variables:
           WEBHOOK_SECRET: !Ref WebhookSecret
