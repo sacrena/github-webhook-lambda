@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "package": "npm run build && mkdir -p output && zip -j \"output/v$(node -p 'require(\"./package.json\").version').zip\" dist/index.js"
+    "package": "npm run build && artifact_version=$(node -p \"require('./package.json').version\") && mkdir -p \"output/v$artifact_version\" && zip -j \"output/v$artifact_version/lambda.zip\" dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

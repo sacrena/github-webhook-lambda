@@ -31,9 +31,9 @@ ARTIFACT_BUCKET=$(aws cloudformation describe-stacks \
   --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" \
   --output text)
 VERSION=$(node -p "require('./package.json').version")
-CODE_KEY="ping/v$VERSION.zip"
+CODE_KEY="v$VERSION/lambda.zip"
 
-aws s3 cp "output/v$VERSION.zip" "s3://$ARTIFACT_BUCKET/$CODE_KEY"
+aws s3 cp "output/v$VERSION/lambda.zip" "s3://$ARTIFACT_BUCKET/$CODE_KEY"
 aws cloudformation deploy \
   --stack-name agentic-setup-lambda \
   --template-file cloudformation/agentic-setup-lambda.yaml \
