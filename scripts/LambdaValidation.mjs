@@ -1,4 +1,4 @@
-import { awsSettings, run } from "./DeploymentUtilities.mjs";
+import { awsSettings, run, runWorkflow } from "./DeploymentUtilities.mjs";
 
 /**
  * Supplies the validation stage used by `lambda:deploy` before it uploads
@@ -16,4 +16,4 @@ function validate() {
   ]);
 }
 
-validate();
+runWorkflow("validate", validate);
