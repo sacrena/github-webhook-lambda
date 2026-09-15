@@ -1,0 +1,9 @@
+### Verify the health endpoint in the selected `local` or `prod` environment.
+GET {{baseUrl}}/ping
+
+> {%
+  client.test("returns pong", () => {
+    client.assert(response.status === 200, "expected HTTP 200");
+    client.assert(response.body.message === "pong", "expected pong response");
+  });
+%}
