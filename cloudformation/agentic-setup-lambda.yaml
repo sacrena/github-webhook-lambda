@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Minimal GitHub webhook receiver that logs PR and issue events.
+Description: Minimal public ping Lambda deployed from a ZIP stored in S3.
 
 Parameters:
   CodeBucket:
@@ -11,16 +11,13 @@ Parameters:
   CodeVersion:
     Type: String
     Description: Version ID of the Lambda ZIP artifact in S3.
-  WebhookSecret:
-    Type: String
-    NoEcho: true
-    MinLength: 32
-    Description: Shared secret configured in the GitHub webhook.
 
 Resources:
-  WebhookRole:
+  PingFunctionRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: agentic-ping-lambda-role
+      Description: Execution role for the public ping Lambda.
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -28,65 +25,51 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      Policies:
-        - PolicyName: WriteWebhookLogs
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: !GetAtt WebhookLogs.Arn
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: agentic-ping-lambda-role
 
-  WebhookLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      RetentionInDays: 7
-
-  WebhookFunction:
+  PingFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName: agentic-ping
+      Description: Returns a JSON pong response from the /ping endpoint.
       Runtime: nodejs22.x
       Handler: index.handler
-      Role: !GetAtt WebhookRole.Arn
-      MemorySize: 128
-      Timeout: 10
+      Role: !GetAtt PingFunctionRole.Arn
       Code:
         S3Bucket: !Ref CodeBucket
         S3Key: !Ref CodeKey
         S3ObjectVersion: !Ref CodeVersion
-      Environment:
-        Variables:
-          WEBHOOK_SECRET: !Ref WebhookSecret
-      LoggingConfig:
-        LogGroup: !Ref WebhookLogs
+      Tags:
+        - Key: Name
+          Value: agentic-ping
 
-  WebhookUrl:
+  PingFunctionUrl:
     Type: AWS::Lambda::Url
     Properties:
-      TargetFunctionArn: !GetAtt WebhookFunction.Arn
+      TargetFunctionArn: !GetAtt PingFunction.Arn
       AuthType: NONE
 
-  AllowUrlAccess:
+  PublicPingFunctionUrlPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref WebhookFunction
+      FunctionName: !Ref PingFunction
       Action: lambda:InvokeFunctionUrl
       Principal: '*'
       FunctionUrlAuthType: NONE
 
-  AllowUrlInvocation:
+  PublicPingFunctionInvocationPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref WebhookFunction
+      FunctionName: !Ref PingFunction
       Action: lambda:InvokeFunction
       Principal: '*'
       InvokedViaFunctionUrl: true
 
 Outputs:
-  WebhookUrl:
-    Description: GitHub webhook payload URL.
-    Value: !GetAtt WebhookUrl.FunctionUrl
-  LogGroup:
-    Value: !Ref WebhookLogs
+  PingUrl:
+    Description: Public URL for GET /ping.
+    Value: !Sub '${PingFunctionUrl.FunctionUrl}ping'
