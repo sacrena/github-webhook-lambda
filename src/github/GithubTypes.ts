@@ -193,7 +193,8 @@ export interface GitHubPullRequestEventPayload extends GitHubPayloadBase {
  * The issue's pull_request marker determines the normalized category.
  * Consumers must not infer full PR details from that marker alone.
  */
-export interface GitHubIssueCommentEventPayload extends GitHubIssueEventPayload {
+export interface GitHubIssueCommentEventPayload
+  extends GitHubIssueEventPayload {
   /** Conversation comment affected by the action. */
   comment: GitHubCommentPayload;
 }
@@ -205,7 +206,8 @@ export interface GitHubIssueCommentEventPayload extends GitHubIssueEventPayload 
  * The common comment mapper also preserves available review coordinates.
  * Review submissions without a comment are a different, unsupported event.
  */
-export interface GitHubReviewCommentEventPayload extends GitHubPullRequestEventPayload {
+export interface GitHubReviewCommentEventPayload
+  extends GitHubPullRequestEventPayload {
   /** Inline review comment affected by the action. */
   comment: GitHubCommentPayload;
 }
@@ -251,7 +253,10 @@ export type GitHubDelivery =
  * callers handle both as comments attached to a pull request.
  */
 export type GitHubWebhookType =
-  "issue" | "pull_request" | "issue_comment" | "pull_request_comment";
+  | "issue"
+  | "pull_request"
+  | "issue_comment"
+  | "pull_request_comment";
 
 /**
  * Represents an account in the normalized webhook response format.
@@ -352,9 +357,15 @@ export interface GitHubPullRequestData {
   /** Account that opened the pull request. */
   user: GitHubUser;
   /** Source branch name and commit revision. */
-  head: { /** Source branch name. */ ref: string; /** Source revision. */ sha: string };
+  head: {
+    /** Source branch name. */ ref: string;
+    /** Source revision. */ sha: string;
+  };
   /** Target branch name and commit revision. */
-  base: { /** Target branch name. */ ref: string; /** Target revision. */ sha: string };
+  base: {
+    /** Target branch name. */ ref: string;
+    /** Target revision. */ sha: string;
+  };
   /** Creation timestamp supplied by GitHub. */
   createdAt: string;
   /** Most recent update timestamp supplied by GitHub. */
@@ -406,7 +417,11 @@ interface GitHubWebhookBase {
   /** Normalized category used to discriminate this response. */
   type: GitHubWebhookType;
   /** GitHub event header responsible for this delivery. */
-  sourceEvent: "issues" | "pull_request" | "issue_comment" | "pull_request_review_comment";
+  sourceEvent:
+    | "issues"
+    | "pull_request"
+    | "issue_comment"
+    | "pull_request_review_comment";
   /** GitHub action supplied by the delivery. */
   action: string;
   /** Repository where the event occurred. */
@@ -477,7 +492,9 @@ export interface GitHubPullRequestCommentWebhook extends GitHubWebhookBase {
   /** Source header for a conversation or inline review comment. */
   sourceEvent: "issue_comment" | "pull_request_review_comment";
   /** Full PR or issue-shaped parent context, depending on sourceEvent. */
-  pullRequest: GitHubPullRequestData | Pick<GitHubIssueData, "id" | "number" | "title" | "htmlUrl">;
+  pullRequest:
+    | GitHubPullRequestData
+    | Pick<GitHubIssueData, "id" | "number" | "title" | "htmlUrl">;
   /** Comment affected by the action. */
   comment: GitHubCommentData;
 }
@@ -490,5 +507,7 @@ export interface GitHubPullRequestCommentWebhook extends GitHubWebhookBase {
  * Unsupported event headers result in undefined rather than this union.
  */
 export type GitHubWebhook =
-  | GitHubIssueWebhook | GitHubPullRequestWebhook
-  | GitHubIssueCommentWebhook | GitHubPullRequestCommentWebhook;
+  | GitHubIssueWebhook
+  | GitHubPullRequestWebhook
+  | GitHubIssueCommentWebhook
+  | GitHubPullRequestCommentWebhook;

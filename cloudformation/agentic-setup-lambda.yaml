@@ -4,20 +4,33 @@ Description: Public ping and GitHub webhook Lambda deployed from a ZIP stored in
 Parameters:
   CodeBucket:
     Type: String
-    Description: ArtifactBucketName output from the artifacts stack.
+    Default: agentic-setup-code-bucket
+    Description: S3 bucket containing the Lambda ZIP artifact.
   CodeKey:
     Type: String
     Description: Object key for the Lambda ZIP artifact.
-  CodeVersion:
+  GitHubWebhookSecretValue:
     Type: String
-    Description: Version ID of the Lambda ZIP artifact in S3.
+    NoEcho: true
+    MinLength: 1
+    Description: Secret GitHub uses to sign webhook deliveries.
 
 Resources:
+  GitHubWebhookSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: agentic-setup-github-webhook-secret
+      Description: Shared secret used to validate incoming GitHub webhooks.
+      SecretString: !Ref GitHubWebhookSecretValue
+      Tags:
+        - Key: Name
+          Value: agentic-setup-github-webhook-secret
+
   PingFunctionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: agentic-ping-lambda-role
-      Description: Execution role for the public ping Lambda.
+      RoleName: agentic-setup-lambda-role
+      Description: Execution role for the public agentic setup Lambda.
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -27,14 +40,22 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: read-github-webhook-secret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref GitHubWebhookSecret
       Tags:
         - Key: Name
-          Value: agentic-ping-lambda-role
+          Value: agentic-setup-lambda-role
 
   PingFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: agentic-ping
+      FunctionName: agentic-setup-lambda
       Description: Provides ping and GitHub webhook endpoints.
       Runtime: nodejs22.x
       Handler: index.handler
@@ -42,10 +63,12 @@ Resources:
       Code:
         S3Bucket: !Ref CodeBucket
         S3Key: !Ref CodeKey
-        S3ObjectVersion: !Ref CodeVersion
+      Environment:
+        Variables:
+          GITHUB_WEBHOOK_SECRET: !Sub '{{resolve:secretsmanager:${GitHubWebhookSecret}:SecretString::AWSCURRENT}}'
       Tags:
         - Key: Name
-          Value: agentic-ping
+          Value: agentic-setup-lambda
 
   PingFunctionUrl:
     Type: AWS::Lambda::Url
