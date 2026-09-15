@@ -16,8 +16,8 @@ Resources:
   PingFunctionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: agentic-ping-lambda-role
-      Description: Execution role for the public ping Lambda.
+      RoleName: agentic-setup-lambda-role
+      Description: Execution role for the public agentic setup Lambda.
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -29,12 +29,12 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Tags:
         - Key: Name
-          Value: agentic-ping-lambda-role
+          Value: agentic-setup-lambda-role
 
   PingFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: agentic-ping
+      FunctionName: agentic-setup-lambda
       Description: Provides ping and GitHub webhook endpoints.
       Runtime: nodejs22.x
       Handler: index.handler
@@ -45,7 +45,7 @@ Resources:
         S3ObjectVersion: !Ref CodeVersion
       Tags:
         - Key: Name
-          Value: agentic-ping
+          Value: agentic-setup-lambda
 
   PingFunctionUrl:
     Type: AWS::Lambda::Url
