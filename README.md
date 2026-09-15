@@ -15,7 +15,7 @@ Signed `ping` requests receive `pong`. Other events/actions are acknowledged and
 
 ## Build and deploy
 
-Requires Node.js 22+, npm, zip, AWS CLI credentials, and an existing S3 artifact bucket in the deployment region. Run from the repository root. Lambda code lives in `src/`; `cloudformation/` contains only infrastructure templates.
+Requires Node.js 22+, npm, zip, and AWS CLI credentials. Run from the repository root. Lambda code lives in `src/`; `cloudformation/` contains the S3 artifact-bucket and Lambda templates.
 
 ```sh
 npm ci
@@ -30,32 +30,18 @@ ARTIFACT_BUCKET=$(aws cloudformation describe-stacks \
   --stack-name agentic-setup-s3 \
   --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" \
   --output text)
-CODE_KEY="github-webhook/$(date +%Y%m%d%H%M%S).zip"
-read -rs 'WEBHOOK_SECRET?GitHub webhook secret (at least 32 characters): '
+VERSION=$(node -p "require('./package.json').version")
+CODE_KEY="ping/v$VERSION.zip"
 
-aws s3 cp lambda.zip "s3://$ARTIFACT_BUCKET/$CODE_KEY"
+aws s3 cp "output/v$VERSION.zip" "s3://$ARTIFACT_BUCKET/$CODE_KEY"
 aws cloudformation deploy \
   --stack-name agentic-setup-lambda \
   --template-file cloudformation/agentic-setup-lambda.yaml \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
     CodeBucket="$ARTIFACT_BUCKET" \
-    CodeKey="$CODE_KEY" \
-    WebhookSecret="$WEBHOOK_SECRET"
-unset WEBHOOK_SECRET
+    CodeKey="$CODE_KEY"
 
-aws cloudformation describe-stacks --stack-name github-webhook \
+aws cloudformation describe-stacks --stack-name agentic-setup-lambda \
   --query 'Stacks[0].Outputs' --output table
 ```
-
-The secret input command above uses zsh. In bash, use `read -rs -p 'GitHub webhook secret: ' WEBHOOK_SECRET`.
-
-In GitHub repository **Settings → Webhooks → Add webhook**, set the output URL as the payload URL, content type to `application/json`, and the same secret. Select individual events: **Pull requests**, **Issues**, **Issue comments**, and **Pull request review comments**. Leave SSL verification enabled.
-
-Inspect incoming event data using the `LogGroup` output:
-
-```sh
-aws logs tail '<LogGroup output>' --follow
-```
-
-The URL is public so GitHub can call it; signature verification happens in the Lambda. Payloads include issue/PR text and user information, so log access should be limited accordingly.
