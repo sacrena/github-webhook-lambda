@@ -1,8 +1,13 @@
 import { respond, type FunctionUrlRequest } from "../shared/http.js";
+import { log } from "../shared/Logger.js";
 import { parseGitHubDelivery } from "./GithubWebhookParser.js";
+import { verifyGitHubWebhook } from "./GithubWebhookSignature.js";
 import type {
-  GitHubUserPayload, GitHubRepositoryPayload, GitHubIssuePayload,
-  GitHubPullRequestPayload, GitHubCommentPayload,
+  GitHubUserPayload,
+  GitHubRepositoryPayload,
+  GitHubIssuePayload,
+  GitHubPullRequestPayload,
+  GitHubCommentPayload,
 } from "./GithubTypes.js";
 import type {
   GitHubUser,
@@ -71,7 +76,9 @@ const issue = (data: GitHubIssuePayload): GitHubIssueData => ({
  * Ordinary conversation comments instead use the issue mapper.
  * No additional GitHub request is needed to construct these fields.
  */
-const pullRequest = (data: GitHubPullRequestPayload): GitHubPullRequestData => ({
+const pullRequest = (
+  data: GitHubPullRequestPayload,
+): GitHubPullRequestData => ({
   id: data.id,
   number: data.number,
   title: data.title,
@@ -108,6 +115,7 @@ const comment = (data: GitHubCommentPayload): GitHubCommentData => ({
   position: data.position,
   commitId: data.commit_id,
 });
+
 /**
  * Validates a GitHub delivery before mapping it into domain data.
  * The parsed HTTP body stays unknown until its consumed fields have
@@ -124,89 +132,98 @@ export function extractGitHubWebhook(
 ): GitHubWebhook | undefined {
   const delivery = parseGitHubDelivery(sourceEvent, payload);
   if (!delivery) return undefined;
+  log("debug", "github.delivery.mapping", { sourceEvent, repositoryId: delivery.payload.repository.id });
   const base = {
     action: delivery.payload.action,
     repository: repository(delivery.payload.repository),
     sender: user(delivery.payload.sender),
   };
-  if (delivery.sourceEvent === "issues")
-    return {
-      ...base,
-      type: "issue",
-      sourceEvent: "issues",
-      issue: issue(delivery.payload.issue),
-    };
-  if (delivery.sourceEvent === "pull_request")
-    return {
-      ...base,
-      type: "pull_request",
-      sourceEvent: "pull_request",
-      pullRequest: pullRequest(delivery.payload.pull_request),
-    };
-  if (delivery.sourceEvent === "issue_comment")
-    return delivery.payload.issue.pull_request !== undefined
-      ? {
-          ...base,
-          type: "pull_request_comment",
-          sourceEvent: "issue_comment",
-          pullRequest: issue(delivery.payload.issue),
-          comment: comment(delivery.payload.comment),
-        }
-      : {
-          ...base,
-          type: "issue_comment",
-          sourceEvent: "issue_comment",
-          issue: issue(delivery.payload.issue),
-          comment: comment(delivery.payload.comment),
-        };
-  if (delivery.sourceEvent === "pull_request_review_comment")
-    return {
-      ...base,
-      type: "pull_request_comment",
-      sourceEvent: delivery.sourceEvent,
-      pullRequest: pullRequest(delivery.payload.pull_request),
-      comment: comment(delivery.payload.comment),
-    };
-  return undefined;
+
+  switch (delivery.sourceEvent) {
+    case "issues":
+      return {
+        ...base,
+        type: "issue",
+        sourceEvent: "issues",
+        issue: issue(delivery.payload.issue),
+      };
+    case "pull_request":
+      return {
+        ...base,
+        type: "pull_request",
+        sourceEvent: "pull_request",
+        pullRequest: pullRequest(delivery.payload.pull_request),
+      };
+    case "issue_comment":
+      return delivery.payload.issue.pull_request !== undefined
+        ? {
+            ...base,
+            type: "pull_request_comment",
+            sourceEvent: "issue_comment",
+            pullRequest: issue(delivery.payload.issue),
+            comment: comment(delivery.payload.comment),
+          }
+        : {
+            ...base,
+            type: "issue_comment",
+            sourceEvent: "issue_comment",
+            issue: issue(delivery.payload.issue),
+            comment: comment(delivery.payload.comment),
+          };
+    case "pull_request_review_comment":
+      return {
+        ...base,
+        type: "pull_request_comment",
+        sourceEvent: delivery.sourceEvent,
+        pullRequest: pullRequest(delivery.payload.pull_request),
+        comment: comment(delivery.payload.comment),
+      };
+  }
 }
 
 /**
- * Decodes the Function URL body at the untrusted HTTP boundary.
- * AWS may supply base64-encoded bytes instead of plain JSON text,
- * so decoding follows the encoding flag before JSON parsing.
- * The result remains unknown until the delivery validator accepts it.
- * A missing body returns undefined and malformed JSON throws.
- */
-function requestBody(event: FunctionUrlRequest): unknown {
-  if (!event.body) return undefined;
-  return JSON.parse(
-    event.isBase64Encoded
-      ? Buffer.from(event.body, "base64").toString("utf8")
-      : event.body,
-  );
-}
-
-/**
- * Acknowledges GitHub deliveries after parsing and field validation.
- * Missing headers and malformed supported payloads receive 400,
- * while unsupported events with valid JSON receive an ignored response.
- * Successful extraction returns normalized content with status 202.
- * This acknowledgement does not enqueue or persist a coding job.
+ * Acknowledges authenticated GitHub deliveries after payload validation.
+ * Verification supplies trusted bytes before this handler reads event
+ * content, while extraction stays responsible for domain validation.
+ * Missing or invalid signatures receive 401; malformed supported payloads
+ * receive 400 and accepted deliveries return 202.
  */
 export function handleGitHub(event: FunctionUrlRequest) {
   const sourceEvent =
     event.headers?.["x-github-event"] ?? event.headers?.["X-GitHub-Event"];
-  if (!sourceEvent)
+  if (!sourceEvent) {
+    log("warn", "github.event_header.missing");
     return respond(400, { message: "Missing X-GitHub-Event header" });
+  }
+
+  log("debug", "github.delivery.received", {
+    sourceEvent,
+    deliveryId: event.headers?.["x-github-delivery"] ?? event.headers?.["X-GitHub-Delivery"],
+  });
+
+  const verification = verifyGitHubWebhook(event);
+  if ("statusCode" in verification)
+    return respond(verification.statusCode, { message: verification.message });
+
   try {
-    const webhook = extractGitHubWebhook(sourceEvent, requestBody(event));
-    if (!webhook)
+    const body = verification.body.toString("utf8");
+    const payload: unknown = body.length ? JSON.parse(body) : undefined;
+    const webhook = extractGitHubWebhook(sourceEvent, payload);
+    if (!webhook) {
+      log("info", "github.delivery.ignored", { sourceEvent });
       return respond(202, {
         message: "Ignored unsupported GitHub event",
         sourceEvent,
       });
+    }
+    log("info", "github.delivery.accepted", {
+      sourceEvent, type: webhook.type, action: webhook.action,
+      repositoryId: webhook.repository.id,
+      deliveryId: event.headers?.["x-github-delivery"] ?? event.headers?.["X-GitHub-Delivery"],
+    });
     return respond(202, { message: "GitHub webhook received", webhook });
   } catch {
+    log("warn", "github.payload.invalid", { sourceEvent });
     return respond(400, { message: "Invalid GitHub webhook payload" });
   }
 }
