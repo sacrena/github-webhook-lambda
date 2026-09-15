@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "package": "npm run build && cd dist && zip -j ../lambda.zip index.js"
+    "package": "npm run build && mkdir -p output && zip -j \"output/v$(node -p 'require(\"./package.json\").version').zip\" dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
