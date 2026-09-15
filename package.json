@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test test/*.test.mjs test/*/*.test.mjs",
+    "test": "npm run build && node --test test/*Tests.mjs test/*/*Tests.mjs",
     "package": "node scripts/LambdaPackage.mjs",
     "validate": "node scripts/LambdaValidation.mjs",
     "code:deploy": "node scripts/LambdaCodeDeployment.mjs",
