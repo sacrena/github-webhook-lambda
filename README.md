@@ -1,17 +1,17 @@
 # GitHub webhook Lambda
 
-Small TypeScript Lambda with no runtime dependencies. Plain CloudFormation creates a Function URL, execution role, and CloudWatch log group (7-day retention). No API Gateway or SAM required.
+Small TypeScript Lambda with no runtime dependencies. Plain CloudFormation creates a Function URL and execution role. No API Gateway or SAM required. See the [developer guide](docs/development.md) for module responsibilities and method behavior.
 
-The handler verifies GitHub's SHA-256 signature against the original body, then logs the event type, delivery ID, and complete payload for:
+`GET /ping` returns a JSON pong response. `POST /github/webhooks` extracts normalized data for these GitHub events, preserving the supplied action:
 
-| GitHub event | Action | Meaning |
-| --- | --- | --- |
-| `pull_request` | `opened` | PR created |
-| `issues` | `opened` | Issue created |
-| `issue_comment` | `created` | Issue or PR conversation comment |
-| `pull_request_review_comment` | `created` | Inline PR review comment |
+| GitHub event | Meaning |
+| --- | --- |
+| `pull_request` | PR activity |
+| `issues` | Issue activity |
+| `issue_comment` | Issue or PR conversation comment |
+| `pull_request_review_comment` | Inline PR review comment |
 
-Signed `ping` requests receive `pong`. Other events/actions are acknowledged and ignored. There is no job processing, storage, or deduplication; repeat deliveries are logged again. PR review submissions (`pull_request_review`) are not comment events handled by this version.
+The webhook response contains the extracted data. There is no signature verification, job processing, storage, or deduplication. PR review submissions (`pull_request_review`) are not comment events handled by this version.
 
 ## Build and deploy
 
