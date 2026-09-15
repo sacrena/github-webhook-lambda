@@ -2,7 +2,10 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 
 import {
-  artifactLocations, artifactVersion, repositoryRoot, run,
+  artifactLocations,
+  artifactVersion,
+  repositoryRoot,
+  run, runWorkflow, log,
 } from "./DeploymentUtilities.mjs";
 
 /**
@@ -19,12 +22,17 @@ function packageLambda() {
 
   run("npm", ["run", "build"]);
   mkdirSync(artifact.directory, { recursive: true });
-  run("zip", [
-    "-FS", "-r", path.relative(distDirectory, artifact.archivePath),
-    "index.js",
-    "github/GithubTypes.js", "github/GithubWebhook.js", "github/GithubWebhookParser.js",
-    "ping/PingEndpoint.js", "shared/http.js",
-  ], { cwd: distDirectory });
+  run(
+    "zip",
+    [
+      "-FS", "-r", path.relative(distDirectory, artifact.archivePath),
+      "index.js", "github/GithubTypes.js", "github/GithubWebhook.js",
+      "github/GithubWebhookParser.js", "github/GithubWebhookSignature.js",
+      "ping/PingEndpoint.js", "shared/http.js", "shared/Logger.js",
+    ],
+    { cwd: distDirectory },
+  );
+  log("info", "artifact.packaged", { version, archivePath: artifact.archivePath });
 }
 
-packageLambda();
+runWorkflow("package", packageLambda);
