@@ -21,15 +21,22 @@ Requires Node.js 22+, npm, zip, AWS CLI credentials, and an existing S3 artifact
 npm ci
 npm run package
 
-# Set these for your AWS account. Use a fresh code key on each deployment.
-ARTIFACT_BUCKET=your-artifact-bucket
+# Create the managed artifact bucket once.
+aws cloudformation deploy \
+  --stack-name agentic-setup-s3 \
+  --template-file cloudformation/agentic-setup-s3.yaml
+
+ARTIFACT_BUCKET=$(aws cloudformation describe-stacks \
+  --stack-name agentic-setup-s3 \
+  --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" \
+  --output text)
 CODE_KEY="github-webhook/$(date +%Y%m%d%H%M%S).zip"
 read -rs 'WEBHOOK_SECRET?GitHub webhook secret (at least 32 characters): '
 
 aws s3 cp lambda.zip "s3://$ARTIFACT_BUCKET/$CODE_KEY"
 aws cloudformation deploy \
-  --stack-name github-webhook \
-  --template-file cloudformation/template.yaml \
+  --stack-name agentic-setup-lambda \
+  --template-file cloudformation/agentic-setup-lambda.yaml \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
     CodeBucket="$ARTIFACT_BUCKET" \
