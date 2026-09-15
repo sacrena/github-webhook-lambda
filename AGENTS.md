@@ -7,3 +7,9 @@ Before generating or changing code, read and apply these skills:
 - [code-quality](.agents/skills/code-quality/SKILL.md): eliminate duplication and group arguments visually; never stack one argument or array item per line.
 
 Before finishing, review all affected code against all three skills, including generated code and scripts. Read docs as standalone prose and verify every claim against the code; line counts alone are not a quality check. Run relevant checks and resolve issues before handing off.
+
+# Git changes
+
+Before creating commits, read and apply [atomic-commits](.agents/skills/github/atomic-commits/SKILL.md). Keep each commit independently reviewable and order commits by their actual implementation sequence or their dependency order.
+
+Before drafting or creating a pull request, read and apply [draft-pr](.agents/skills/github/draft-pr/SKILL.md). Push the review-ready branch before creating the pull request, compare it with the intended base branch, and explain its behavior, exclusions, validation, and review considerations.
