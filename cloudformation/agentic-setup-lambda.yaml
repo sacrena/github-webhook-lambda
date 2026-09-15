@@ -4,13 +4,11 @@ Description: Public ping and GitHub webhook Lambda deployed from a ZIP stored in
 Parameters:
   CodeBucket:
     Type: String
-    Description: ArtifactBucketName output from the artifacts stack.
+    Default: agentic-setup-code-bucket
+    Description: S3 bucket containing the Lambda ZIP artifact.
   CodeKey:
     Type: String
     Description: Object key for the Lambda ZIP artifact.
-  CodeVersion:
-    Type: String
-    Description: Version ID of the Lambda ZIP artifact in S3.
   GitHubWebhookSecretValue:
     Type: String
     NoEcho: true
@@ -65,7 +63,6 @@ Resources:
       Code:
         S3Bucket: !Ref CodeBucket
         S3Key: !Ref CodeKey
-        S3ObjectVersion: !Ref CodeVersion
       Environment:
         Variables:
           GITHUB_WEBHOOK_SECRET: !Sub '{{resolve:secretsmanager:${GitHubWebhookSecret}:SecretString::AWSCURRENT}}'
