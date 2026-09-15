@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Minimal public ping Lambda deployed from a ZIP stored in S3.
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: ArtifactBucketName output from the artifacts stack.
+  CodeKey:
+    Type: String
+    Description: Object key for the Lambda ZIP artifact.
+  CodeVersion:
+    Type: String
+    Description: Version ID of the Lambda ZIP artifact in S3.
+
+Resources:
+  PingFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: agentic-ping-lambda-role
+      Description: Execution role for the public ping Lambda.
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: agentic-ping-lambda-role
+
+  PingFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: agentic-ping
+      Description: Returns a JSON pong response from the /ping endpoint.
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role: !GetAtt PingFunctionRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+        S3ObjectVersion: !Ref CodeVersion
+      Tags:
+        - Key: Name
+          Value: agentic-ping
+
+  PingFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt PingFunction.Arn
+      AuthType: NONE
+
+  PublicPingFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PingFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+  PublicPingFunctionInvocationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PingFunction
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      InvokedViaFunctionUrl: true
+
+Outputs:
+  PingUrl:
+    Description: Public URL for GET /ping.
+    Value: !Sub '${PingFunctionUrl.FunctionUrl}ping'
