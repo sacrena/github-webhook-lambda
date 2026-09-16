@@ -24,6 +24,7 @@ function setEnvironment(t, name, value) {
 }
 
 test("logger filters levels, preserves its envelope, and falls back to info", (t) => {
+  setEnvironment(t, "AWS_LAMBDA_FUNCTION_NAME", "");
   const records = [];
   t.mock.method(console, "error", (line) => records.push(JSON.parse(line)));
   setEnvironment(t, "LOG_LEVEL", "warn");
@@ -44,7 +45,26 @@ test("logger filters levels, preserves its envelope, and falls back to info", (t
   assert.equal(records.length, 4);
 });
 
+test("Lambda logs use matching console severity while local logs stay on stderr", (t) => {
+  const records = [];
+  const levels = ["debug", "info", "warn", "error"];
+  for (const method of levels)
+    t.mock.method(console, method, (line) => records.push({ method, record: JSON.parse(line) }));
+  setEnvironment(t, "LOG_LEVEL", "debug");
+  setEnvironment(t, "AWS_LAMBDA_FUNCTION_NAME", "test-lambda");
+  for (const level of levels) log(level, "severity.check");
+  assert.deepEqual(records.map(({ method }) => method), levels);
+  assert.deepEqual(records.map(({ record }) => record.level), levels);
+
+  process.env.AWS_LAMBDA_FUNCTION_NAME = "";
+  records.length = 0;
+  for (const level of levels) log(level, "local.check");
+  assert.ok(records.every(({ method }) => method === "error"));
+  assert.deepEqual(records.map(({ record }) => record.level), levels);
+});
+
 test("request contexts remain isolated across asynchronous work and throws", async (t) => {
+  setEnvironment(t, "AWS_LAMBDA_FUNCTION_NAME", "");
   const records = [];
   t.mock.method(console, "error", (line) => records.push(JSON.parse(line)));
   setEnvironment(t, "LOG_LEVEL", "debug");
@@ -63,6 +83,7 @@ test("request contexts remain isolated across asynchronous work and throws", asy
 });
 
 test("webhook logs correlate outcomes without exposing bodies or credentials", async (t) => {
+  setEnvironment(t, "AWS_LAMBDA_FUNCTION_NAME", "");
   const records = [];
   t.mock.method(console, "error", (line) => records.push(JSON.parse(line)));
   setEnvironment(t, "LOG_LEVEL", "debug");
@@ -89,6 +110,7 @@ test("webhook logs correlate outcomes without exposing bodies or credentials", a
 });
 
 test("deployment failures log metadata and preserve failure exit semantics", (t) => {
+  setEnvironment(t, "AWS_LAMBDA_FUNCTION_NAME", "");
   const records = [];
   const previousExitCode = process.exitCode;
   t.after(() => { process.exitCode = previousExitCode; });
