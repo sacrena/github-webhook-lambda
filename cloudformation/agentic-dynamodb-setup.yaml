@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: DynamoDB storage for agentic setup requests.
+
+Resources:
+  RequestsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        # False preserves default AWS-owned-key encryption; it does not disable encryption.
+        SSEEnabled: false
+      AttributeDefinitions:
+        - AttributeName: deliveryId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: deliveryId
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: agentic-setup-requests
+
+Outputs:
+  RequestsTableName:
+    Description: DynamoDB table storing requests by GitHub delivery ID.
+    Value: !Ref RequestsTable
+  RequestsTableArn:
+    Description: Table ARN for resource-scoped Lambda permissions.
+    Value: !GetAtt RequestsTable.Arn
