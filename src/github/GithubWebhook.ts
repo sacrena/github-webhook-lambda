@@ -1,4 +1,5 @@
 import { respond, type FunctionUrlRequest } from "../shared/http.js";
+import { EventBridgeService } from "../aws/EventBridgeService.js";
 import { log } from "../shared/Logger.js";
 import { parseGitHubDelivery } from "./GithubWebhookParser.js";
 import { verifyGitHubWebhook } from "./GithubWebhookSignature.js";
@@ -131,8 +132,11 @@ export function extractGitHubWebhook(
   payload: unknown,
 ): GitHubWebhook | undefined {
   const delivery = parseGitHubDelivery(sourceEvent, payload);
+
   if (!delivery) return undefined;
+
   log("debug", "github.delivery.mapping", { sourceEvent, repositoryId: delivery.payload.repository.id });
+
   const base = {
     action: delivery.payload.action,
     repository: repository(delivery.payload.repository),
@@ -186,11 +190,15 @@ export function extractGitHubWebhook(
  * Verification supplies trusted bytes before this handler reads event
  * content, while extraction stays responsible for domain validation.
  * Missing or invalid signatures receive 401; malformed supported payloads
- * receive 400 and accepted deliveries return 202.
+ * receive 400. Bodies starting with @agent or /agent publish the original
+ * JSON payload for provisioning; comments use their own body, not their
+ * parent's description. Publication failures receive 500, while accepted
+ * deliveries return 202 after any required publication completes.
  */
-export function handleGitHub(event: FunctionUrlRequest) {
+export async function handleGitHub(event: FunctionUrlRequest) {
   const sourceEvent =
     event.headers?.["x-github-event"] ?? event.headers?.["X-GitHub-Event"];
+
   if (!sourceEvent) {
     log("warn", "github.event_header.missing");
     return respond(400, { message: "Missing X-GitHub-Event header" });
@@ -202,6 +210,7 @@ export function handleGitHub(event: FunctionUrlRequest) {
   });
 
   const verification = verifyGitHubWebhook(event);
+
   if ("statusCode" in verification)
     return respond(verification.statusCode, { message: verification.message });
 
@@ -209,6 +218,7 @@ export function handleGitHub(event: FunctionUrlRequest) {
     const body = verification.body.toString("utf8");
     const payload: unknown = body.length ? JSON.parse(body) : undefined;
     const webhook = extractGitHubWebhook(sourceEvent, payload);
+
     if (!webhook) {
       log("info", "github.delivery.ignored", { sourceEvent });
       return respond(202, {
@@ -216,6 +226,21 @@ export function handleGitHub(event: FunctionUrlRequest) {
         sourceEvent,
       });
     }
+
+    const text = "comment" in webhook ? webhook.comment.body
+      : webhook.type === "issue" ? webhook.issue.body : webhook.pullRequest.body;
+
+    if (text?.startsWith("@agent") || text?.startsWith("/agent")) {
+      try {
+        await EventBridgeService.putEvent(
+          "agentic.setup", "ProvisionRequested", payload as Record<string, unknown>,
+        );
+      } catch {
+        log("error", "github.provision.publish_failed", { sourceEvent });
+        return respond(500, { message: "Failed to publish provisioning request" });
+      }
+    }
+
     log("info", "github.delivery.accepted", {
       sourceEvent, type: webhook.type, action: webhook.action,
       repositoryId: webhook.repository.id,
