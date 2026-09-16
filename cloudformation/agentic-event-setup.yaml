@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Dedicated EventBridge bus forwarding events to the provisioning API.
+
+Parameters:
+  LambdaFunctionUrl:
+    Type: String
+    Description: Lambda Function URL, including its trailing slash, supplied by the root stack.
+  ApiKeySecretArn:
+    Type: String
+    Description: Secrets Manager ARN containing the shared API key as plain text.
+
+Resources:
+  ProvisionConnection:
+    Type: AWS::Events::Connection
+    Properties:
+      Name: agentic-provision-auth
+      AuthorizationType: API_KEY
+      AuthParameters:
+        ApiKeyAuthParameters:
+          ApiKeyName: X-Api-Key
+          ApiKeyValue: !Sub '{{resolve:secretsmanager:${ApiKeySecretArn}:SecretString}}'
+
+  ProvisionDestination:
+    Type: AWS::Events::ApiDestination
+    Properties:
+      Name: agentic-provision-api
+      ConnectionArn: !GetAtt ProvisionConnection.Arn
+      InvocationEndpoint: !Sub '${LambdaFunctionUrl}provision'
+      HttpMethod: POST
+      InvocationRateLimitPerSecond: 10
+
+  EventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: agentic-events
+
+  DestinationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: agentic-events-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: invoke-provision-destination
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: events:InvokeApiDestination
+                Resource: !GetAtt ProvisionDestination.Arn
+
+  ProvisionRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: agentic-provision-rule
+      EventBusName: !Ref EventBus
+      State: ENABLED
+      EventPattern:
+        source:
+          - exists: true
+      Targets:
+        - Id: ProvisionApi
+          Arn: !GetAtt ProvisionDestination.Arn
+          RoleArn: !GetAtt DestinationRole.Arn
+
+Outputs:
+  ProvisionUrl:
+    Description: API-key authenticated POST /provision destination URL.
+    Value: !Sub '${LambdaFunctionUrl}provision'
+  EventBusName:
+    Description: Bus name to supply when publishing with PutEvents.
+    Value: !Ref EventBus

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
+import { EventBridgeService } from "../../dist/aws/EventBridgeService.js";
 
 import {
   extractGitHubWebhook,
@@ -8,6 +9,7 @@ import {
 } from "../../dist/github/GithubWebhook.js";
 
 process.env.GITHUB_WEBHOOK_SECRET = "test-webhook-secret";
+process.env.EVENT_BUS_NAME = "test-bus";
 
 const user = {
   id: 1,
@@ -58,7 +60,7 @@ const pullRequest = {
  * Tests use this helper to exercise parsing and validation together,
  * while direct extractor calls cover normalized output separately.
  * Request overrides allow individual transport cases to share fixtures.
- * The returned Lambda response is left intact for status and body checks.
+ * The returned promise resolves to the intact Lambda response for checks.
  */
 function githubRequest(sourceEvent, payload, options = {}) {
   const body = options.body ?? JSON.stringify(payload);
@@ -76,6 +78,52 @@ function githubRequest(sourceEvent, payload, options = {}) {
     ...options,
   });
 }
+
+test("agent prefixes publish the original payload across supported content types", async (t) => {
+  const publish = t.mock.method(EventBridgeService, "putEvent", async () => "event-1");
+  const base = { action: "created", repository, sender: user, installation: { id: 99 } };
+  for (const body of ["@agent fix this", "/agent\nfix this", "@agent", "/agent"]) {
+    const deliveries = {
+      issues: { ...base, issue: { ...issue, body } },
+      pull_request: { ...base, pull_request: { ...pullRequest, body } },
+      issue_comment: { ...base, issue, comment: { ...comment, body } },
+      pull_request_review_comment: { ...base, pull_request: pullRequest, comment: { ...comment, body } },
+    };
+    for (const [sourceEvent, payload] of Object.entries(deliveries)) {
+      const before = publish.mock.callCount();
+      const response = await githubRequest(sourceEvent, payload, {
+        body: Buffer.from(JSON.stringify(payload)).toString("base64"), isBase64Encoded: true,
+      });
+      assert.equal(response.statusCode, 202);
+      assert.equal(publish.mock.callCount(), before + 1);
+      assert.deepEqual(publish.mock.calls.at(-1).arguments, ["agentic.setup", "ProvisionRequested", payload]);
+    }
+  }
+});
+
+test("noncommands, invalid deliveries, and parent commands do not publish", async (t) => {
+  const publish = t.mock.method(EventBridgeService, "putEvent", async () => "event-1");
+  const base = { action: "created", repository, sender: user };
+  for (const body of [null, "", "please @agent", " /agent fix", "@Agent fix"]) {
+    assert.equal((await githubRequest("issues", { ...base, issue: { ...issue, body } })).statusCode, 202);
+  }
+  const payload = { ...base, issue: { ...issue, body: "@agent fix" }, comment };
+  assert.equal((await githubRequest("issue_comment", payload)).statusCode, 202);
+  assert.equal((await githubRequest("push", payload)).statusCode, 202);
+  assert.equal((await githubRequest("issues", { ...payload, sender: null })).statusCode, 400);
+  assert.equal((await githubRequest("issues", payload, {
+    headers: { "x-github-event": "issues", "x-hub-signature-256": "invalid" },
+  })).statusCode, 401);
+  assert.equal(publish.mock.callCount(), 0);
+});
+
+test("publication failures return a server error", async (t) => {
+  t.mock.method(EventBridgeService, "putEvent", async () => { throw new Error("AWS failure"); });
+  const payload = { action: "opened", repository, sender: user, issue: { ...issue, body: "/agent fix" } };
+  const response = await githubRequest("issues", payload);
+  assert.equal(response.statusCode, 500);
+  assert.equal(JSON.parse(response.body).message, "Failed to publish provisioning request");
+});
 
 test("extractGitHubWebhook normalizes issue and pull request events", () => {
   const issueWebhook = extractGitHubWebhook("issues", {
@@ -129,11 +177,11 @@ test("extractGitHubWebhook distinguishes issue and pull request comments", () =>
   assert.equal(reviewComment.comment.path, "src/index.ts");
 });
 
-test("handleGitHub acknowledges supported events and accepts base64 bodies", () => {
+test("handleGitHub acknowledges supported events and accepts base64 bodies", async () => {
   const payload = { action: "opened", repository, sender: user, issue };
-  const response = githubRequest("issues", payload);
+  const response = await githubRequest("issues", payload);
   const json = JSON.stringify(payload);
-  const base64Response = githubRequest("issues", payload, {
+  const base64Response = await githubRequest("issues", payload, {
     body: Buffer.from(json).toString("base64"),
     isBase64Encoded: true,
   });
@@ -143,7 +191,7 @@ test("handleGitHub acknowledges supported events and accepts base64 bodies", () 
   assert.equal(base64Response.statusCode, 202);
 });
 
-test("supported deliveries reject malformed common and nested payload fields", () => {
+test("supported deliveries reject malformed common and nested payload fields", async () => {
   const base = { action: "opened", repository, sender: user };
   const invalidRepository = { ...repository, private: "false" };
   const invalidSender = { ...user, id: "1" };
@@ -164,7 +212,7 @@ test("supported deliveries reject malformed common and nested payload fields", (
     { ...base, issue: invalidClosedAt },
   ];
   for (const payload of invalidIssues)
-    assert.equal(githubRequest("issues", payload).statusCode, 400);
+    assert.equal((await githubRequest("issues", payload)).statusCode, 400);
 
   const invalidPullRequests = [
     { ...pullRequest, head: null },
@@ -174,9 +222,7 @@ test("supported deliveries reject malformed common and nested payload fields", (
   ];
   for (const payload of invalidPullRequests)
     assert.equal(
-      githubRequest("pull_request", { ...base, pull_request: payload })
-        .statusCode,
-      400,
+      (await githubRequest("pull_request", { ...base, pull_request: payload })).statusCode, 400,
     );
 
   const invalidComments = [
@@ -187,30 +233,26 @@ test("supported deliveries reject malformed common and nested payload fields", (
   ];
   for (const payload of invalidComments) {
     assert.equal(
-      githubRequest("issue_comment", { ...base, issue, comment: payload })
-        .statusCode,
-      400,
+      (await githubRequest("issue_comment", { ...base, issue, comment: payload })).statusCode, 400,
     );
     const review = { ...base, pull_request: pullRequest, comment: payload };
     assert.equal(
-      githubRequest("pull_request_review_comment", review).statusCode,
-      400,
+      (await githubRequest("pull_request_review_comment", review)).statusCode, 400,
     );
   }
   const wrongParent = { ...base, issue, comment };
   assert.equal(
-    githubRequest("pull_request_review_comment", wrongParent).statusCode,
-    400,
+    (await githubRequest("pull_request_review_comment", wrongParent)).statusCode, 400,
   );
   const invalidMarker = {
     ...base,
     issue: { ...issue, pull_request: null },
     comment,
   };
-  assert.equal(githubRequest("issue_comment", invalidMarker).statusCode, 400);
+  assert.equal((await githubRequest("issue_comment", invalidMarker)).statusCode, 400);
 });
 
-test("validation preserves open actions, extra metadata, and nullable review positions", () => {
+test("validation preserves open actions, extra metadata, and nullable review positions", async () => {
   const payload = {
     action: "future_action",
     repository,
@@ -219,21 +261,20 @@ test("validation preserves open actions, extra metadata, and nullable review pos
     comment: { ...comment, position: null },
     installation: { id: 99 },
   };
-  const response = githubRequest("pull_request_review_comment", payload);
+  const response = await githubRequest("pull_request_review_comment", payload);
   assert.equal(response.statusCode, 202);
   const { webhook } = JSON.parse(response.body);
   assert.equal(webhook.action, "future_action");
   assert.equal(webhook.comment.position, null);
   assert.equal(
-    githubRequest("ping", { zen: "Keep it logically awesome." }).statusCode,
-    202,
+    (await githubRequest("ping", { zen: "Keep it logically awesome." })).statusCode, 202,
   );
 });
 
-test("handleGitHub reports missing headers, invalid payloads, and ignored events", () => {
-  const missingHeader = handleGitHub({ body: "{}" });
-  const invalidPayload = githubRequest("issues", undefined, { body: "not json" });
-  const ignoredEvent = githubRequest("push", {
+test("handleGitHub reports missing headers, invalid payloads, and ignored events", async () => {
+  const missingHeader = await handleGitHub({ body: "{}" });
+  const invalidPayload = await githubRequest("issues", undefined, { body: "not json" });
+  const ignoredEvent = await githubRequest("push", {
     action: "created",
     repository,
     sender: user,
@@ -251,13 +292,13 @@ test("handleGitHub reports missing headers, invalid payloads, and ignored events
   });
 });
 
-test("handleGitHub rejects missing and invalid webhook signatures", () => {
+test("handleGitHub rejects missing and invalid webhook signatures", async () => {
   const payload = { action: "opened", repository, sender: user, issue };
-  const missingSignature = handleGitHub({
+  const missingSignature = await handleGitHub({
     headers: { "x-github-event": "issues" },
     body: JSON.stringify(payload),
   });
-  const invalidSignature = handleGitHub({
+  const invalidSignature = await handleGitHub({
     headers: {
       "x-github-event": "issues",
       "x-hub-signature-256": "sha256=not-a-valid-digest",

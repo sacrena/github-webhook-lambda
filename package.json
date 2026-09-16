@@ -1,6 +1,6 @@
 {
   "name": "ping-lambda",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "scripts": {
     "build": "tsc",
@@ -12,6 +12,12 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "js-yaml": "^4.3.2",
     "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1133.0",
+    "@aws-sdk/client-eventbridge": "^3.1133.0",
+    "@aws-sdk/lib-dynamodb": "^3.1133.0"
   }
 }

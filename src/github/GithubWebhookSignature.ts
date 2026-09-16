@@ -33,6 +33,7 @@ function hasValidSignature(body: Buffer, signature: string | undefined, secret: 
   const digest = createHmac("sha256", secret).update(body).digest("hex");
   const expected = Buffer.from(`sha256=${digest}`);
   const supplied = Buffer.from(signature);
+
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
@@ -45,6 +46,7 @@ function hasValidSignature(body: Buffer, signature: string | undefined, secret: 
  */
 export function verifyGitHubWebhook(event: FunctionUrlRequest): GitHubWebhookVerification {
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
+
   if (!secret) {
     log("error", "github.signature.secret_unavailable");
     return { statusCode: 500, message: "GitHub webhook secret is unavailable" };
@@ -54,11 +56,13 @@ export function verifyGitHubWebhook(event: FunctionUrlRequest): GitHubWebhookVer
   const body = Buffer.from(event.body ?? "", encoding);
   const signature = event.headers?.["x-hub-signature-256"]
     ?? event.headers?.["X-Hub-Signature-256"];
+
   if (!hasValidSignature(body, signature, secret)) {
     log("warn", "github.signature.rejected", { reason: signature ? "invalid" : "missing" });
     return { statusCode: 401, message: "Invalid GitHub webhook signature" };
   }
 
   log("debug", "github.signature.verified");
+
   return { body };
 }

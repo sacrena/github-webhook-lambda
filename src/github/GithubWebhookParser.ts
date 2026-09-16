@@ -184,6 +184,7 @@ export function parseGitHubDelivery(
   payload: unknown,
 ): GitHubDelivery | undefined {
   log("debug", "github.payload.validating", { sourceEvent });
+
   if (
     ![
       "issues", "pull_request",
@@ -191,6 +192,7 @@ export function parseGitHubDelivery(
     ].includes(sourceEvent)
   )
     return undefined;
+
   if (
     !isRecord(payload) ||
     typeof payload.action !== "string" ||
@@ -206,6 +208,7 @@ export function parseGitHubDelivery(
     repository: payload.repository,
     sender: payload.sender,
   };
+
   switch (sourceEvent) {
     case "issues":
       if (isIssue(payload.issue))
@@ -236,6 +239,7 @@ export function parseGitHubDelivery(
           },
         };
   }
+
   log("debug", "github.payload.content_invalid", { sourceEvent });
   throw new Error("Invalid GitHub event content");
 }

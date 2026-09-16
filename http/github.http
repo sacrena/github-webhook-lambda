@@ -1,7 +1,8 @@
-### Submit a harmless, valid GitHub issues payload in the selected environment.
+### Verify that an unsigned GitHub issues payload is rejected before parsing.
 POST {{baseUrl}}/github/webhooks
 Content-Type: application/json
 X-GitHub-Event: issues
+X-Hub-Signature-256: sha256=invalid
 
 {
   "action": "opened",
@@ -37,9 +38,11 @@ X-GitHub-Event: issues
 }
 
 > {%
-  client.test("acknowledges and normalizes the issue delivery", () => {
-    client.assert(response.status === 202, "expected HTTP 202");
-    client.assert(response.body.webhook.type === "issue", "expected issue webhook");
-    client.assert(response.body.webhook.issue.number === 1, "expected issue number");
+  client.test("rejects an invalid GitHub webhook signature", () => {
+    client.assert(response.status === 401, "expected HTTP 401");
+    client.assert(
+      response.body.message === "Invalid GitHub webhook signature",
+      "expected an invalid-signature response",
+    );
   });
 %}

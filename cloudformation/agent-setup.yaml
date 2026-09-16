@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Provisions shared secrets, the agentic Lambda, DynamoDB storage, and EventBridge intake.
+
+Parameters:
+  ProvisionApiKeyValue:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+    Description: Shared provisioning API key; subsequent updates reuse the previous parameter.
+  CodeBucket:
+    Type: String
+    Default: agentic-setup-code-bucket
+    Description: S3 bucket containing the Lambda ZIP artifact.
+  CodeKey:
+    Type: String
+    Description: Object key for the Lambda ZIP artifact.
+  CodeVersion:
+    Type: String
+    Description: S3 object version identifying the exact Lambda ZIP to deploy.
+  GitHubWebhookSecretValue:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+    Description: Secret GitHub uses to sign webhook deliveries.
+
+Resources:
+  SecretsSetup:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: agentic-secrets-setup.yaml
+      Parameters:
+        GitHubWebhookSecretValue: !Ref GitHubWebhookSecretValue
+        ProvisionApiKeyValue: !Ref ProvisionApiKeyValue
+
+  DynamoSetup:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: agentic-dynamodb-setup.yaml
+
+  LambdaSetup:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: agentic-setup-lambda.yaml
+      Parameters:
+        CodeBucket: !Ref CodeBucket
+        CodeKey: !Ref CodeKey
+        CodeVersion: !Ref CodeVersion
+        GitHubWebhookSecretArn: !GetAtt SecretsSetup.Outputs.GitHubWebhookSecretArn
+        ProvisionApiKeyArn: !GetAtt SecretsSetup.Outputs.ProvisionApiKeyArn
+        RequestsTableName: !GetAtt DynamoSetup.Outputs.RequestsTableName
+        RequestsTableArn: !GetAtt DynamoSetup.Outputs.RequestsTableArn
+
+  EventSetup:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: agentic-event-setup.yaml
+      Parameters:
+        LambdaFunctionUrl: !GetAtt LambdaSetup.Outputs.FunctionUrl
+        ApiKeySecretArn: !GetAtt SecretsSetup.Outputs.ProvisionApiKeyArn
+
+Outputs:
+  EventBusName:
+    Description: Dedicated bus accepting events for the provisioning endpoint.
+    Value: !GetAtt EventSetup.Outputs.EventBusName
+  RequestsTableName:
+    Description: DynamoDB table storing requests by GitHub delivery ID.
+    Value: !GetAtt DynamoSetup.Outputs.RequestsTableName
+  PingUrl:
+    Description: Public URL for GET /ping.
+    Value: !GetAtt LambdaSetup.Outputs.PingUrl
+  GitHubWebhookUrl:
+    Description: Public URL for GitHub POST webhooks.
+    Value: !GetAtt LambdaSetup.Outputs.GitHubWebhookUrl
+  ProvisionUrl:
+    Description: API-key authenticated POST /provision endpoint.
+    Value: !GetAtt EventSetup.Outputs.ProvisionUrl

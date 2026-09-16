@@ -7,9 +7,12 @@ const levels = { debug: 10, info: 20, warn: 30, error: 40, silent: 50 };
 /**
  * Writes a structured operational event for Lambda and deployment scripts.
  * Callers supply a stable event name and explicitly selected scalar metadata;
- * bodies, credentials, command arguments, and raw errors must stay outside it.
+ * credentials, command arguments, and raw errors must stay outside it.
+ * The provisioning placeholder explicitly logs its authenticated body as text;
+ * other callers keep payload bodies outside operational metadata.
  * LOG_LEVEL is read at emission time and defaults to info for unknown values.
- * Records go to stderr so deployment stdout can still carry command results.
+ * Lambda records use the matching console severity so CloudWatch labels agree
+ * with the JSON level. Outside Lambda, stderr keeps command stdout separate.
  * Reserved envelope fields are assigned last to keep their meaning stable.
  *
  * @param {"debug" | "info" | "warn" | "error"} level Event severity.
@@ -20,8 +23,12 @@ function log(level, event, fields = {}) {
   const configured = process.env.LOG_LEVEL?.toLowerCase() ?? "info";
   const threshold = Object.hasOwn(levels, configured)
     ? levels[/** @type {keyof typeof levels} */ (configured)] : levels.info;
+
   if (levels[level] < threshold) return;
-  console.error(JSON.stringify({
+
+  const output = process.env.AWS_LAMBDA_FUNCTION_NAME ? level : "error";
+
+  console[output](JSON.stringify({
     ...context.getStore(), ...fields,
     timestamp: new Date().toISOString(), level, event,
   }));
