@@ -1,7 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Public ping and GitHub webhook Lambda deployed from a ZIP stored in S3.
+Description: Lambda endpoints and execution permissions.
 
 Parameters:
+  RequestsTableName:
+    Type: String
+    Description: Table name supplied by the root stack's DynamoDB component.
+  RequestsTableArn:
+    Type: String
+    Description: Table ARN used to scope request storage permissions.
   CodeBucket:
     Type: String
     Default: agentic-setup-code-bucket
@@ -9,23 +15,17 @@ Parameters:
   CodeKey:
     Type: String
     Description: Object key for the Lambda ZIP artifact.
-  GitHubWebhookSecretValue:
+  CodeVersion:
     Type: String
-    NoEcho: true
-    MinLength: 1
-    Description: Secret GitHub uses to sign webhook deliveries.
+    Description: S3 object version identifying the exact Lambda ZIP to deploy.
+  GitHubWebhookSecretArn:
+    Type: String
+    Description: GitHub webhook secret ARN supplied by the secrets stack.
+  ProvisionApiKeyArn:
+    Type: String
+    Description: Shared provisioning API key ARN supplied by the secrets stack.
 
 Resources:
-  GitHubWebhookSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: agentic-setup-github-webhook-secret
-      Description: Shared secret used to validate incoming GitHub webhooks.
-      SecretString: !Ref GitHubWebhookSecretValue
-      Tags:
-        - Key: Name
-          Value: agentic-setup-github-webhook-secret
-
   PingFunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -40,14 +40,29 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      # Inline policies keep these resource-scoped permissions tied to this role's lifecycle.
       Policies:
+        - PolicyName: publish-events
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/agentic-events'
         - PolicyName: read-github-webhook-secret
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: !Ref GitHubWebhookSecret
+                Resource: !Ref GitHubWebhookSecretArn
+        - PolicyName: track-requests
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['dynamodb:PutItem', 'dynamodb:GetItem']
+                Resource: !Ref RequestsTableArn
       Tags:
         - Key: Name
           Value: agentic-setup-lambda-role
@@ -56,16 +71,20 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: agentic-setup-lambda
-      Description: Provides ping and GitHub webhook endpoints.
+      Description: Provides ping, GitHub webhook, and provisioning endpoints.
       Runtime: nodejs22.x
       Handler: index.handler
       Role: !GetAtt PingFunctionRole.Arn
       Code:
         S3Bucket: !Ref CodeBucket
         S3Key: !Ref CodeKey
+        S3ObjectVersion: !Ref CodeVersion
       Environment:
         Variables:
-          GITHUB_WEBHOOK_SECRET: !Sub '{{resolve:secretsmanager:${GitHubWebhookSecret}:SecretString::AWSCURRENT}}'
+          EVENT_BUS_NAME: agentic-events
+          PROVISION_API_KEY: !Sub '{{resolve:secretsmanager:${ProvisionApiKeyArn}:SecretString}}'
+          REQUESTS_TABLE_NAME: !Ref RequestsTableName
+          GITHUB_WEBHOOK_SECRET: !Sub '{{resolve:secretsmanager:${GitHubWebhookSecretArn}:SecretString::AWSCURRENT}}'
       Tags:
         - Key: Name
           Value: agentic-setup-lambda
@@ -81,6 +100,7 @@ Resources:
     Properties:
       FunctionName: !Ref PingFunction
       Action: lambda:InvokeFunctionUrl
+      # GitHub and the API destination use application authentication, not AWS account credentials.
       Principal: '*'
       FunctionUrlAuthType: NONE
 
@@ -89,10 +109,14 @@ Resources:
     Properties:
       FunctionName: !Ref PingFunction
       Action: lambda:InvokeFunction
+      # Public invocation is restricted to the Function URL by InvokedViaFunctionUrl below.
       Principal: '*'
       InvokedViaFunctionUrl: true
 
 Outputs:
+  FunctionUrl:
+    Description: Base Function URL used by the root stack to configure EventBridge.
+    Value: !GetAtt PingFunctionUrl.FunctionUrl
   PingUrl:
     Description: Public URL for GET /ping.
     Value: !Sub '${PingFunctionUrl.FunctionUrl}ping'
