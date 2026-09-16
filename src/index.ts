@@ -1,5 +1,6 @@
 import { handleGitHub } from "./github/GithubWebhook.js";
 import { handlePing } from "./ping/PingEndpoint.js";
+import { handleProvision } from "./provision/ProvisionEndpoint.js";
 import { respond, type FunctionUrlRequest } from "./shared/http.js";
 import { randomUUID } from "node:crypto";
 import { log, withLogContext } from "./shared/Logger.js";
@@ -18,21 +19,34 @@ export type * from "./github/GithubTypes.js";
 export async function handler(event: FunctionUrlRequest) {
   const method = event.requestContext?.http?.method;
   const requestId = event.requestContext?.requestId ?? randomUUID();
-  return withLogContext({ requestId, method, path: event.rawPath }, () => {
+
+  return withLogContext({ requestId, method, path: event.rawPath }, async () => {
     const started = performance.now();
+
     log("info", "http.request.started");
+
     try {
       let response;
-      if (method === "GET" && event.rawPath === "/ping") response = handlePing();
-      else if (method === "POST" && event.rawPath === "/github/webhooks")
-        response = handleGitHub(event);
-      else {
-        log("warn", "http.route.not_found");
-        response = respond(404, { message: "Not found" });
+
+      switch (`${method} ${event.rawPath}`) {
+        case "GET /ping":
+          response = handlePing();
+          break;
+        case "POST /provision":
+          response = handleProvision(event);
+          break;
+        case "POST /github/webhooks":
+          response = await handleGitHub(event);
+          break;
+        default:
+          log("warn", "http.route.not_found");
+          response = respond(404, { message: "Not found" });
       }
+
       log("info", "http.request.completed", {
         statusCode: response.statusCode, durationMs: performance.now() - started,
       });
+
       return response;
     } catch (error) {
       log("error", "http.request.failed", { durationMs: performance.now() - started });
