@@ -9,6 +9,8 @@ Do not extract a helper solely to wrap a one- or two-line expression used once. 
 
 Treat visual readability as a primary requirement. Group related arguments and array items symmetrically across a few lines (usually two or more for long calls). Keep CLI flags beside their values and parallel groups in a consistent order.
 
+Separate distinct logical steps with blank lines so readers can follow the flow.
+
 Never format calls or arrays as one parameter or list item per line. Use semantic groups; introduce a named value when a group is too long. This rule concerns code arguments and arrays, not Markdown lists or documented object fields.
 
 ```js
