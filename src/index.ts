@@ -1,6 +1,8 @@
 import { handleGitHub } from "./github/GithubWebhook.js";
 import { handlePing } from "./ping/PingEndpoint.js";
 import { handleProvision } from "./provision/ProvisionEndpoint.js";
+import { handleTimeout } from "./timeout/TimeoutEndpoint.js";
+import { handleCleanup } from "./provision/CleanupEndpoint.js";
 import { respond, type FunctionUrlRequest } from "./shared/http.js";
 import { randomUUID } from "node:crypto";
 import { log, withLogContext } from "./shared/Logger.js";
@@ -33,7 +35,13 @@ export async function handler(event: FunctionUrlRequest) {
           response = handlePing();
           break;
         case "POST /provision":
-          response = handleProvision(event);
+          response = await handleProvision(event);
+          break;
+        case "POST /timeout":
+          response = await handleTimeout(event);
+          break;
+        case "POST /cleanup":
+          response = await handleCleanup(event);
           break;
         case "POST /github/webhooks":
           response = await handleGitHub(event);
