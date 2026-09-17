@@ -82,7 +82,7 @@ export function composeTemplate(root, components) {
 
 /**
  * Writes the single-stack deployment artifact consumed by validation and deploy.
- * The root YAML describes how the four source components connect; the generated
+ * The root YAML describes how the source components connect; the generated
  * JSON places their resources directly in the existing Lambda stack instead.
  * Output lives under the ignored version directory alongside the Lambda ZIP.
  * It contains parameter declarations and references, never supplied secrets.
