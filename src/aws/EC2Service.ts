@@ -5,7 +5,6 @@ import {
 import { expiredInstanceTags, instanceResource, savedInstanceResource } from "../provision/InstanceResources.js";
 import { resolveInstanceLaunch, workerRegion } from "../provision/InstanceConfiguration.js";
 import { InstanceJournal } from "../provision/InstanceJournal.js";
-import { AttachmentCleanup } from "../provision/AttachmentCleanup.js";
 import {
   EC2_CLEANUP_INSTANCE_STATES, EC2_CLEANUP_STATE_FILTER, EC2_INSTANCE_RESOURCE_STATUS,
   EC2_DELIVERY_ID_TAG_KEY, EC2_LAUNCH_REQUEST_ID_TAG_KEY, EC2_MANAGEMENT_TAG_FILTER,
@@ -27,12 +26,12 @@ import type { ProvisionedResource } from "../provision/ProvisionedResource.js";
  */
 export class EC2Service {
   /**
-   * Reconciles expired instances and detached attachments in the worker region.
+   * Requests termination of expired managed instances in the worker region.
    * Ownership and deadline tags allow discovery independently of launch IDs
    * in the request database. Stopped workers retain billable disks and remain
-   * eligible, while detached volumes and interfaces have their own sweeps.
-   * Category failures preserve partial results and do not block other scans;
-   * callers must repeat passes until AWS has completed asynchronous deletion.
+   * eligible. AWS handles attached resources using their termination settings.
+   * Instance failures preserve partial results so callers can retry cleanup;
+   * accepted requests do not confirm completion of asynchronous termination.
    */
   static async cleanupExpiredInstances(): Promise<CleanupResult> {
     const region = workerRegion();
@@ -42,7 +41,7 @@ export class EC2Service {
     const client = new EC2Client({ region });
     const result: CleanupResult = {
       terminationRequested: [], skipped: [], failed: [], trackingFailed: [],
-      deletedVolumes: [], deletedNetworkInterfaces: [], queryFailed: [],
+      queryFailed: [],
     };
     try {
       const seen = new Set<string>();
@@ -124,10 +123,6 @@ export class EC2Service {
       result.queryFailed.push("instances");
     }
 
-    try { await AttachmentCleanup.volumes(client, result); }
-    catch { result.queryFailed.push("volumes"); }
-    try { await AttachmentCleanup.interfaces(client, result); }
-    catch { result.queryFailed.push("network-interfaces"); }
     return result;
   }
 
