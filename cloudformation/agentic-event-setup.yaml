@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Dedicated EventBridge bus forwarding events to the provisioning API.
+Description: Dedicated provisioning, timeout, and recurring cleanup event delivery.
 
 Parameters:
   LambdaFunctionUrl:
@@ -8,8 +8,166 @@ Parameters:
   ApiKeySecretArn:
     Type: String
     Description: Secrets Manager ARN containing the shared API key as plain text.
+  CleanupScheduleExpression:
+    Type: String
+    Default: rate(1 minute)
+    Description: EventBridge Scheduler rate or cron expression for recurring cleanup requests.
 
 Resources:
+  CleanupConnection:
+    Type: AWS::Events::Connection
+    Properties:
+      Name: agentic-cleanup-auth
+      AuthorizationType: API_KEY
+      AuthParameters:
+        ApiKeyAuthParameters:
+          ApiKeyName: X-Api-Key
+          ApiKeyValue: !Sub '{{resolve:secretsmanager:${ApiKeySecretArn}:SecretString}}'
+
+  CleanupDestination:
+    Type: AWS::Events::ApiDestination
+    Properties:
+      Name: agentic-cleanup-api
+      ConnectionArn: !GetAtt CleanupConnection.Arn
+      InvocationEndpoint: !Sub '${LambdaFunctionUrl}cleanup'
+      HttpMethod: POST
+      InvocationRateLimitPerSecond: 10
+
+  CleanupEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: agentic-cleanup-events
+
+  CleanupScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: agentic-cleanups
+
+  CleanupSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: agentic-cleanup-scheduler-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnEquals:
+                aws:SourceArn: !GetAtt CleanupScheduleGroup.Arn
+      Policies:
+        - PolicyName: publish-cleanup-events
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !GetAtt CleanupEventBus.Arn
+
+  CleanupRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: agentic-cleanup-rule
+      EventBusName: !Ref CleanupEventBus
+      State: ENABLED
+      EventPattern:
+        source: [agentic.setup]
+        detail-type: [CleanupRequested]
+      Targets:
+        - Id: CleanupApi
+          Arn: !GetAtt CleanupDestination.Arn
+          RoleArn: !GetAtt DestinationRole.Arn
+
+  CleanupSchedule:
+    Type: AWS::Scheduler::Schedule
+    DependsOn: CleanupRule
+    Properties:
+      Name: agentic-cleanup-schedule
+      GroupName: !Ref CleanupScheduleGroup
+      ScheduleExpression: !Ref CleanupScheduleExpression
+      State: ENABLED
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      Target:
+        Arn: !GetAtt CleanupEventBus.Arn
+        RoleArn: !GetAtt CleanupSchedulerRole.Arn
+        EventBridgeParameters:
+          Source: agentic.setup
+          DetailType: CleanupRequested
+        Input: '{}'
+
+  TimeoutConnection:
+    Type: AWS::Events::Connection
+    Properties:
+      Name: agentic-timeout-auth
+      AuthorizationType: API_KEY
+      AuthParameters:
+        ApiKeyAuthParameters:
+          ApiKeyName: X-Api-Key
+          ApiKeyValue: !Sub '{{resolve:secretsmanager:${ApiKeySecretArn}:SecretString}}'
+
+  TimeoutDestination:
+    Type: AWS::Events::ApiDestination
+    Properties:
+      Name: agentic-timeout-api
+      ConnectionArn: !GetAtt TimeoutConnection.Arn
+      InvocationEndpoint: !Sub '${LambdaFunctionUrl}timeout'
+      HttpMethod: POST
+      InvocationRateLimitPerSecond: 10
+
+  TimeoutEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: agentic-timeout-events
+
+  TimeoutScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: agentic-timeouts
+
+  TimeoutSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: agentic-timeout-scheduler-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnEquals:
+                aws:SourceArn: !GetAtt TimeoutScheduleGroup.Arn
+      Policies:
+        - PolicyName: publish-timeout-events
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !GetAtt TimeoutEventBus.Arn
+
+  TimeoutRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: agentic-timeout-rule
+      EventBusName: !Ref TimeoutEventBus
+      State: ENABLED
+      EventPattern:
+        source: [agentic.setup]
+        detail-type: [TimeoutRequested]
+      Targets:
+        - Id: TimeoutApi
+          Arn: !GetAtt TimeoutDestination.Arn
+          RoleArn: !GetAtt DestinationRole.Arn
+
   ProvisionConnection:
     Type: AWS::Events::Connection
     Properties:
@@ -53,6 +211,12 @@ Resources:
               - Effect: Allow
                 Action: events:InvokeApiDestination
                 Resource: !GetAtt ProvisionDestination.Arn
+              - Effect: Allow
+                Action: events:InvokeApiDestination
+                Resource: !GetAtt TimeoutDestination.Arn
+              - Effect: Allow
+                Action: events:InvokeApiDestination
+                Resource: !GetAtt CleanupDestination.Arn
 
   ProvisionRule:
     Type: AWS::Events::Rule
@@ -61,14 +225,26 @@ Resources:
       EventBusName: !Ref EventBus
       State: ENABLED
       EventPattern:
-        source:
-          - exists: true
+        source: [agentic.setup]
+        detail-type: [ProvisionRequested]
       Targets:
         - Id: ProvisionApi
           Arn: !GetAtt ProvisionDestination.Arn
           RoleArn: !GetAtt DestinationRole.Arn
 
 Outputs:
+  CleanupUrl:
+    Description: API-key authenticated POST /cleanup destination URL.
+    Value: !Sub '${LambdaFunctionUrl}cleanup'
+  CleanupEventBusName:
+    Description: Dedicated bus receiving recurring cleanup events.
+    Value: !Ref CleanupEventBus
+  TimeoutUrl:
+    Description: API-key authenticated POST /timeout destination URL.
+    Value: !Sub '${LambdaFunctionUrl}timeout'
+  TimeoutEventBusName:
+    Description: Dedicated bus receiving scheduled timeout events.
+    Value: !Ref TimeoutEventBus
   ProvisionUrl:
     Description: API-key authenticated POST /provision destination URL.
     Value: !Sub '${LambdaFunctionUrl}provision'

@@ -1,71 +1,38 @@
-# From GitHub event to coding job
+# 1. Turning a comment into a job
 
-[Overview](../README.md) · [Next: GitHub App and repository access](../02-github-access/README.md)
+[Overview](../README.md) · [Next: GitHub access](../02-github-access/README.md)
 
-> Proposed behavior to implement. This guide does not describe deployed functionality.
+A maintainer writes “/agent fix the failing test.” The first job of the receiver is to decide whether that request should spend machine time, then save an assignment that a worker can follow.
 
-Accept a deliberate request, save its instructions, and start only one worker.
+Today, the application verifies GitHub signatures, recognizes command prefixes, saves requests, and dispatches provisioning. The policy and richer job definition below are planned additions.
 
-[![From GitHub event to coding job](flow.svg)](flow.svg)
+## Accepting a deliberate request
 
-[Open full-size SVG](flow.svg)
+The current entry point is a Lambda Function URL. GitHub sends the original event body there, along with its signature and delivery ID.
 
-## Purpose
+After verifying the signature, the proposed intake should check the repository, event action, and requester. Start with selected repositories and maintainer-only comment commands. A valid GitHub signature alone does not establish permission to start a paid job.
 
-Turn an approved GitHub request into one clear coding task. For example, a maintainer comments “/agent fix the failing test” on an issue. The system saves the request and starts a temporary worker when capacity is available.
+The receiver should save the assignment before acknowledging it. A duplicate delivery should reuse that assignment. If capacity is full, the job should wait until a worker slot becomes available or its deadline passes.
 
-This is the proposed behavior. No job intake implementation was found in the inspected repository paths.
+## Giving the worker a clear starting point
 
-## Where it runs and when it is enabled
+The current request already stores the command, repository, sender, and issue or PR number. The proposed job also needs:
 
-A repository webhook sends events to an API Gateway URL. API Gateway is the public web address; Lambda is the program handling the request. Enable the feature only for selected repositories, event actions and people. Start with an explicit comment command instead of every push.
-
-The repository webhook can remain separate from the GitHub App. The webhook delivers notifications; the App supplies permission to read and publish code.
-
-## How it works
-
-1. GitHub sends the event body, event type and delivery ID.
-2. The receiver verifies the signature against the **original request bytes**, using the configured webhook secret.
-3. It checks the repository, event action and person requesting the work. A genuine GitHub event from an unknown commenter must not automatically buy an EC2 job.
-4. It saves the delivery ID and one job record together. A retry finds that record instead of creating a second job.
-5. It acknowledges the webhook promptly after durable acceptance. Provisioning happens separately; GitHub must not wait for installation or coding.
-6. A provisioning handler reserves capacity and launches the worker.
-
-A saved job can also serve as the waiting list for the first version. A scheduled dispatcher retries waiting work. A separate queue can be added later; it does not replace duplicate detection.
-
-## What the job contains
-
-| Saved item | Why it matters |
+| Information | Why the worker needs it |
 | --- | --- |
-| Job ID and GitHub delivery ID | Track the work and recognize repeated delivery |
-| Repository and App installation ID | Select the approved repository identity |
-| Requesting person and issue/PR/comment IDs | Explain who requested what and where to find context |
-| Instructions | Give the agent a bounded task |
-| Base branch and exact starting commit | Record the code version the task starts from |
-| Output branch, such as agent/job-123 | Keep the work separate for review |
-| Bootstrap release | Choose the Ansible and runner version |
-| Deadline and maximum run duration | Bound waiting, installation and execution |
-| State and assigned EC2 instance ID | Track progress and control cleanup |
+| Starting branch and exact commit | Work from an agreed code version |
+| Assigned output branch | Publish somewhere predictable, such as `agent/job-123` |
+| GitHub App installation | Obtain access to the approved repository |
+| Setup release | Install the intended tools and runner version |
+| Job state and worker assignment | Know who owns the work and whether it is still active |
+| Result location | Let people find the outcome after the worker disappears |
 
-Store secret references if needed, never GitHub tokens or agent API keys in the job definition. Resolve the repository from an approved record rather than accepting arbitrary clone URLs or shell commands from comments.
+Keep tokens and API keys out of the job definition. Repository selection should come from approved configuration, rather than an arbitrary clone URL embedded in the comment.
 
-## What the user sees
+## What happens after acceptance?
 
-The event is accepted for processing, not declared successful. The job later ends with a PR link, a no-change result, or a reason it could not finish. Posting progress comments is optional and needs the corresponding GitHub write permission.
+The requester has asked for an attempt, so the acknowledgement should not claim the task succeeded. Later, the result should explain what happened: a PR, no change needed, or a failure with useful output.
 
-## Edge cases
+The first release should exclude untrusted fork jobs and ignore the agent’s own publishing events to prevent loops. If context changes while a job waits, keep the saved starting commit and record any newer context fetched by the runner.
 
-- **GitHub retries delivery:** return the existing outcome; do not launch again.
-- **A worker slot is unavailable:** keep the saved job waiting until capacity or its deadline.
-- **The receiver fails before saving:** return failure so delivery can be retried. Also provide an operator recovery path for missed events.
-- **The agent pushes its own branch:** ignore bot/output-branch events unless explicitly needed, avoiding a loop.
-- **The requested PR comes from a fork:** exclude this from the first release; author trust and write destination need an explicit policy.
-- **Context changes while waiting:** record what was requested and what context was fetched. Do not silently switch the starting commit.
-
-## Related code and references
-
-No webhook receiver or job-store implementation is established here. Proposed ownership: webhook handler, job store and provisioning dispatcher.
-
-GitHub: [webhook validation](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries), [webhook delivery practices](https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks).
-
-[Overview](../README.md) · [Next: GitHub App and repository access](../02-github-access/README.md)
+The current [webhook handler](../../../../src/github/GithubWebhook.ts) is the starting point. GitHub’s [delivery practices](https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks) explain the delivery contract.

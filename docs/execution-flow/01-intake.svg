@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="2826" viewBox="0 0 1600 2826" role="img" aria-labelledby="title desc">
+<title id="title">01  Every intake boundary and mapper</title>
+<desc id="desc">Detailed execution call cards in reading order. Each card shows inputs, transformations and persistence. Dashed cards are assumed connections. Branches and alternatives are explicitly labeled. Read the linked Markdown for all field contracts and errors.</desc>
+<defs>
+<style>text{font-family:"Comic Sans MS","Segoe Print",cursive,sans-serif;fill:#fff}.title{font-size:32px;font-weight:700}.heading{font-size:23px;font-weight:700;fill:#ff4d00}.body{font-size:18px}.note{font-size:17px;fill:#bdbdbd}.outline{fill:#1a1a1a;stroke:#f5f5f5;stroke-width:2;stroke-linejoin:round}.echo{fill:none;stroke:#aaa;stroke-width:.7;opacity:.55}.assumed{stroke:#ff4d00;stroke-dasharray:10 7}.join{fill:none;stroke:#ff4d00;stroke-width:2;stroke-linecap:round}</style>
+</defs>
+<rect width="1600" height="2826" fill="#1a1a1a"/>
+<text x="60" y="58" class="title">01  Every intake boundary and mapper</text>
+<text x="60" y="96" class="body">White outline = implemented function / AWS configuration   •   Dashed orange = assumed adapter</text>
+<text x="60" y="128" class="note">Read numbered cards in order; follow the explicit branch labels. Full field and failure contracts are in 01-intake.md.</text>
+<a href="01-intake.md"><g id="step-1" data-box="60,166,1480,180">
+<path class="outline" d="M60 166 Q790 163 1540 167 L1541 346 Q800 349 59 346 Z"/>
+<path class="echo" d="M63 169 L1537 165 L1539 343 L62 348 Z"/>
+<text x="84" y="205" class="heading">I1  handler(event) → withLogContext(fields, operation)</text>
+<path d="M798 228 Q800 273 798 324" class="echo"/>
+<text x="84" y="254" class="body">READ  requestContext.http.method; rawPath; requestId</text>
+<text x="84" y="291" class="body">ADD  randomUUID only if transport request ID nullish</text>
+<text x="824" y="254" class="body">CALL  performance.now; log(http.request.started)</text>
+<text x="824" y="291" class="body">STORE  async-local context; console log only</text>
+</g></a>
+<path class="join" d="M42 236 Q26 236 28 301 L28 401 Q28 416 47 416 M39 410 L48 416 L39 423"/>
+<a href="01-intake.md"><g id="step-2" data-box="60,384,1480,180">
+<path class="outline" d="M60 384 Q790 381 1540 385 L1541 564 Q800 567 59 564 Z"/>
+<path class="echo" d="M63 387 L1537 383 L1539 561 L62 566 Z"/>
+<text x="84" y="423" class="heading">I2  Exact method + path switch</text>
+<path d="M798 446 Q800 491 798 542" class="echo"/>
+<text x="84" y="472" class="body">ROUTES  /ping, /github/webhooks, /provision</text>
+<text x="84" y="509" class="body">ROUTES  /timeout and /cleanup; exact methods required</text>
+<text x="824" y="472" class="body">ELSE  respond(404, {message: Not found})</text>
+<text x="824" y="509" class="body">PING  handlePing → debug log → JSON 200 pong</text>
+</g></a>
+<path class="join" d="M42 454 Q26 454 28 519 L28 619 Q28 634 47 634 M39 628 L48 634 L39 641"/>
+<a href="01-intake.md"><g id="step-3" data-box="60,602,1480,180">
+<path class="outline" d="M60 602 Q790 599 1540 603 L1541 782 Q800 785 59 782 Z"/>
+<path class="echo" d="M63 605 L1537 601 L1539 779 L62 784 Z"/>
+<text x="84" y="641" class="heading">I3  handleGitHub → verifyGitHubWebhook</text>
+<path d="M798 664 Q800 709 798 760" class="echo"/>
+<text x="84" y="690" class="body">READ  lower-case or title-case X-GitHub-Event</text>
+<text x="84" y="727" class="body">BUFFER  body decoded as base64 or UTF-8</text>
+<text x="824" y="690" class="body">EXIT  missing event header 400; missing secret 500</text>
+<text x="824" y="727" class="body">STORE  no domain write; decoded bytes in memory</text>
+</g></a>
+<path class="join" d="M42 672 Q26 672 28 737 L28 837 Q28 852 47 852 M39 846 L48 852 L39 859"/>
+<a href="01-intake.md"><g id="step-4" data-box="60,820,1480,180">
+<path class="outline" d="M60 820 Q790 817 1540 821 L1541 1000 Q800 1003 59 1000 Z"/>
+<path class="echo" d="M63 823 L1537 819 L1539 997 L62 1002 Z"/>
+<text x="84" y="859" class="heading">I4  hasValidSignature(body, signature, secret)</text>
+<path d="M798 882 Q800 927 798 978" class="echo"/>
+<text x="84" y="908" class="body">CALL  createHmac(sha256).update(body).digest(hex)</text>
+<text x="84" y="945" class="body">ADD  sha256= prefix; compare full-string buffers</text>
+<text x="824" y="908" class="body">CHECK  equal byte lengths → timingSafeEqual</text>
+<text x="824" y="945" class="body">EXIT  missing/bad signature 401; success {body}</text>
+</g></a>
+<path class="join" d="M42 890 Q26 890 28 955 L28 1055 Q28 1070 47 1070 M39 1064 L48 1070 L39 1077"/>
+<a href="01-intake.md"><g id="step-5" data-box="60,1038,1480,180">
+<path class="outline" d="M60 1038 Q790 1035 1540 1039 L1541 1218 Q800 1221 59 1218 Z"/>
+<path class="echo" d="M63 1041 L1537 1037 L1539 1215 L62 1220 Z"/>
+<text x="84" y="1077" class="heading">I5  UTF-8 text → JSON.parse → extractGitHubWebhook</text>
+<path d="M798 1100 Q800 1145 798 1196" class="echo"/>
+<text x="84" y="1126" class="body">IN  verified bytes; empty text becomes undefined</text>
+<text x="84" y="1163" class="body">CALL  parseGitHubDelivery(sourceEvent, payload)</text>
+<text x="824" y="1126" class="body">EXIT  invalid JSON 400; unsupported event 202 ignored</text>
+<text x="824" y="1163" class="body">STORE  no mutation; unsupported skips schema checks</text>
+</g></a>
+<path class="join" d="M42 1108 Q26 1108 28 1173 L28 1273 Q28 1288 47 1288 M39 1282 L48 1288 L39 1295"/>
+<a href="01-intake.md"><g id="step-6" data-box="60,1256,1480,180">
+<path class="outline" d="M60 1256 Q790 1253 1540 1257 L1541 1436 Q800 1439 59 1436 Z"/>
+<path class="echo" d="M63 1259 L1537 1255 L1539 1433 L62 1438 Z"/>
+<text x="84" y="1295" class="heading">I6  Context validators</text>
+<path d="M798 1318 Q800 1363 798 1414" class="echo"/>
+<text x="84" y="1344" class="body">CALL  isRecord(payload); action is string</text>
+<text x="84" y="1381" class="body">CALL  isRepository(repository); isUser(sender)</text>
+<text x="824" y="1344" class="body">HELPERS  isRecord rejects null/arrays</text>
+<text x="824" y="1381" class="body">CHECK  exact consumed field types; extras allowed</text>
+</g></a>
+<path class="join" d="M42 1326 Q26 1326 28 1391 L28 1491 Q28 1506 47 1506 M39 1500 L48 1506 L39 1513"/>
+<a href="01-intake.md"><g id="step-7" data-box="60,1474,1480,180">
+<path class="outline" d="M60 1474 Q790 1471 1540 1475 L1541 1654 Q800 1657 59 1654 Z"/>
+<path class="echo" d="M63 1477 L1537 1473 L1539 1651 L62 1656 Z"/>
+<text x="84" y="1513" class="heading">I7  Content and event-specific validators</text>
+<path d="M798 1536 Q800 1581 798 1632" class="echo"/>
+<text x="84" y="1562" class="body">CALL  isNullableString → isContent → isIssueLike</text>
+<text x="84" y="1599" class="body">CALL  isIssue / isPullRequest / isComment</text>
+<text x="824" y="1562" class="body">CHECK  users, labels, assignees, branches, coordinates</text>
+<text x="824" y="1599" class="body">OUT  discriminated delivery; invalid content throws</text>
+</g></a>
+<path class="join" d="M42 1544 Q26 1544 28 1609 L28 1709 Q28 1724 47 1724 M39 1718 L48 1724 L39 1731"/>
+<a href="01-intake.md"><g id="step-8" data-box="60,1692,1480,180">
+<path class="outline" d="M60 1692 Q790 1689 1540 1693 L1541 1872 Q800 1875 59 1872 Z"/>
+<path class="echo" d="M63 1695 L1537 1691 L1539 1869 L62 1874 Z"/>
+<text x="84" y="1731" class="heading">I8  Common mappers: repository(data), user(data)</text>
+<path d="M798 1754 Q800 1799 798 1850" class="echo"/>
+<text x="84" y="1780" class="body">COPY  ids, names, login, private</text>
+<text x="84" y="1817" class="body">RENAME  full_name → fullName; html_url → htmlUrl</text>
+<text x="824" y="1780" class="body">ADD  base {action, repository, sender}</text>
+<text x="824" y="1817" class="body">DROP  unlisted account/repository metadata</text>
+</g></a>
+<path class="join" d="M42 1762 Q26 1762 28 1827 L28 1927 Q28 1942 47 1942 M39 1936 L48 1942 L39 1949"/>
+<a href="01-intake.md"><g id="step-9" data-box="60,1910,1480,180">
+<path class="outline" d="M60 1910 Q790 1907 1540 1911 L1541 2090 Q800 2093 59 2090 Z"/>
+<path class="echo" d="M63 1913 L1537 1909 L1539 2087 L62 2092 Z"/>
+<text x="84" y="1949" class="heading">I9  issue(data), pullRequest(data), comment(data)</text>
+<path d="M798 1972 Q800 2017 798 2068" class="echo"/>
+<text x="84" y="1998" class="body">RENAME  timestamps, URLs and review coordinates</text>
+<text x="84" y="2035" class="body">MAP  labels to names; assignees/authors via user</text>
+<text x="824" y="1998" class="body">COPY  issue lifecycle; PR branches/merge; comment text</text>
+<text x="824" y="2035" class="body">OUT  new projected objects; no database write</text>
+</g></a>
+<path class="join" d="M42 1980 Q26 1980 28 2045 L28 2145 Q28 2160 47 2160 M39 2154 L48 2160 L39 2167"/>
+<a href="01-intake.md"><g id="step-10" data-box="60,2128,1480,180">
+<path class="outline" d="M60 2128 Q790 2125 1540 2129 L1541 2308 Q800 2311 59 2308 Z"/>
+<path class="echo" d="M63 2131 L1537 2127 L1539 2305 L62 2310 Z"/>
+<text x="84" y="2167" class="heading">I10  Event category dispatch</text>
+<path d="M798 2190 Q800 2235 798 2286" class="echo"/>
+<text x="84" y="2216" class="body">issues → issue; pull_request → pullRequest</text>
+<text x="84" y="2253" class="body">issue_comment → issue or PR parent via marker</text>
+<text x="824" y="2216" class="body">review_comment → full PR + mapped comment</text>
+<text x="824" y="2253" class="body">ADD  type/sourceEvent; PR conversation is issue-shaped</text>
+</g></a>
+<path class="join" d="M42 2198 Q26 2198 28 2263 L28 2363 Q28 2378 47 2378 M39 2372 L48 2378 L39 2385"/>
+<a href="01-intake.md"><g id="step-11" data-box="60,2346,1480,180">
+<path class="outline" d="M60 2346 Q790 2343 1540 2347 L1541 2526 Q800 2529 59 2526 Z"/>
+<path class="echo" d="M63 2349 L1537 2345 L1539 2523 L62 2528 Z"/>
+<text x="84" y="2385" class="heading">I11  Prefix selection → command / noncommand branch</text>
+<path d="M798 2408 Q800 2453 798 2504" class="echo"/>
+<text x="84" y="2434" class="body">CHOOSE  comment.body first, else issue/PR body</text>
+<text x="84" y="2471" class="body">TEST  startsWith(@agent) OR startsWith(/agent)</text>
+<text x="824" y="2434" class="body">COMMAND  require delivery ID → trackedRequest → dispatch</text>
+<text x="824" y="2471" class="body">ELSE  no AWS side effects; return normalized webhook</text>
+</g></a>
+<path class="join" d="M42 2416 Q26 2416 28 2481 L28 2581 Q28 2596 47 2596 M39 2590 L48 2596 L39 2603"/>
+<a href="01-intake.md"><g id="step-12" data-box="60,2564,1480,180">
+<path class="outline" d="M60 2564 Q790 2561 1540 2565 L1541 2744 Q800 2747 59 2744 Z"/>
+<path class="echo" d="M63 2567 L1537 2563 L1539 2741 L62 2746 Z"/>
+<text x="84" y="2603" class="heading">I12  respond → completion log → invocation ends</text>
+<path d="M798 2626 Q800 2671 798 2722" class="echo"/>
+<text x="84" y="2652" class="body">JSON  payload becomes string body; undefined omitted</text>
+<text x="84" y="2689" class="body">LOG  timestamp, level, event, context and chosen fields</text>
+<text x="824" y="2652" class="body">RETURN  202 accepted; parse/schema catch gives 400</text>
+<text x="824" y="2689" class="body">STORE  logs only here; dispatch writes shown in stage 02</text>
+</g></a>
+<a href="01-intake.md"><text x="60" y="2806" class="note">Open 01-intake.md • Current working-tree inspection, 2026-09-17 • Excalidraw-style SVG; no live AWS execution asserted.</text></a>
+</svg>

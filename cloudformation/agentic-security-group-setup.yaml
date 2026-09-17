@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Shared outbound-only security group for ephemeral agent workers in the default VPC.
+
+Resources:
+  WorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Outbound-only network access for agentic EC2 workers.
+      VpcId: vpc-0773cc6f63148e689
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+          Description: Permit worker access to required external services.
+      Tags:
+        - Key: Name
+          Value: agentic-setup-worker
+
+Outputs:
+  WorkerSecurityGroupId:
+    Description: Shared security group applied to every worker launch.
+    Value: !GetAtt WorkerSecurityGroup.GroupId

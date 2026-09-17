@@ -12,8 +12,8 @@ function validate() {
   run("npm", ["test"]);
 
   const templates = [
-    "agentic-setup-lambda", "agentic-secrets-setup",
-    "agentic-event-setup", "agentic-dynamodb-setup",
+    "agentic-setup-lambda", "agentic-secrets-setup", "agentic-security-group-setup",
+    "agentic-event-setup", "agentic-dynamodb-setup", "agentic-policy-setup",
   ];
   const filenames = [buildTemplate(), ...templates.map((name) => `cloudformation/${name}.yaml`)];
 

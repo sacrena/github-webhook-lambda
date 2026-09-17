@@ -2,6 +2,12 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Lambda endpoints and execution permissions.
 
 Parameters:
+  WorkerEC2PolicyArn:
+    Type: String
+    Description: Worker EC2 managed policy ARN supplied by the root stack.
+  WorkerSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Shared worker security group supplied by the root stack.
   RequestsTableName:
     Type: String
     Description: Table name supplied by the root stack's DynamoDB component.
@@ -40,8 +46,22 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !Ref WorkerEC2PolicyArn
       # Inline policies keep these resource-scoped permissions tied to this role's lifecycle.
       Policies:
+        - PolicyName: schedule-timeouts
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['scheduler:CreateSchedule', 'scheduler:GetSchedule']
+                Resource: !Sub 'arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/agentic-timeouts/timeout-*'
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/agentic-timeout-scheduler-role'
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: scheduler.amazonaws.com
         - PolicyName: publish-events
           PolicyDocument:
             Version: '2012-10-17'
@@ -61,7 +81,7 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: ['dynamodb:PutItem', 'dynamodb:GetItem']
+                Action: ['dynamodb:PutItem', 'dynamodb:GetItem', 'dynamodb:UpdateItem']
                 Resource: !Ref RequestsTableArn
       Tags:
         - Key: Name
@@ -71,8 +91,9 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: agentic-setup-lambda
-      Description: Provides ping, GitHub webhook, and provisioning endpoints.
+      Description: Provides ping, GitHub webhook, provisioning, and timeout endpoints.
       Runtime: nodejs22.x
+      Timeout: 60
       Handler: index.handler
       Role: !GetAtt PingFunctionRole.Arn
       Code:
@@ -81,9 +102,14 @@ Resources:
         S3ObjectVersion: !Ref CodeVersion
       Environment:
         Variables:
+          LOG_LEVEL: info
           EVENT_BUS_NAME: agentic-events
+          TIMEOUT_EVENT_BUS_ARN: !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/agentic-timeout-events'
+          TIMEOUT_SCHEDULER_ROLE_ARN: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/agentic-timeout-scheduler-role'
+          TIMEOUT_SCHEDULE_GROUP: agentic-timeouts
           PROVISION_API_KEY: !Sub '{{resolve:secretsmanager:${ProvisionApiKeyArn}:SecretString}}'
           REQUESTS_TABLE_NAME: !Ref RequestsTableName
+          EC2_SECURITY_GROUP_ID: !Ref WorkerSecurityGroupId
           GITHUB_WEBHOOK_SECRET: !Sub '{{resolve:secretsmanager:${GitHubWebhookSecretArn}:SecretString::AWSCURRENT}}'
       Tags:
         - Key: Name

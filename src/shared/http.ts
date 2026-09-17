@@ -27,6 +27,22 @@ export interface FunctionUrlRequest {
 }
 
 /**
+ * Decodes the request payload into the text consumed by HTTP features.
+ * EventBridge endpoints use this at their boundary so their handlers receive
+ * the original event envelope regardless of Function URL body encoding.
+ * Missing bodies are intentionally represented as empty text for logging.
+ * Authentication remains the responsibility of the calling endpoint.
+ * Invalid base64 follows Node's Buffer decoding behavior without validation.
+ *
+ * @param event Function URL request whose body may be base64 encoded.
+ * @returns The decoded body text, or an empty string when no body was supplied.
+ */
+export function decodeRequestBody(event: FunctionUrlRequest) {
+  return event.isBase64Encoded
+    ? Buffer.from(event.body ?? "", "base64").toString("utf8") : event.body ?? "";
+}
+
+/**
  * Builds the JSON transport response shared by all endpoint handlers.
  * Feature code chooses the status and public payload before calling this
  * boundary, keeping serialization separate from authentication and mapping.

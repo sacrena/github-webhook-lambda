@@ -1,5 +1,8 @@
 import { respond, type FunctionUrlRequest } from "../shared/http.js";
 import { EventBridgeService } from "../aws/EventBridgeService.js";
+import { SchedulerService } from "../aws/SchedulerService.js";
+import { DynamoService } from "../aws/DynamoService.js";
+import { requestDeadline } from "../requests/RequestDeadline.js";
 import { log } from "../shared/Logger.js";
 import { parseGitHubDelivery } from "./GithubWebhookParser.js";
 import { verifyGitHubWebhook } from "./GithubWebhookSignature.js";
@@ -10,6 +13,7 @@ import type {
   GitHubPullRequestPayload,
   GitHubCommentPayload,
 } from "./GithubTypes.js";
+import type { TrackedRequest } from "../requests/TrackedRequest.js";
 import type {
   GitHubUser,
   GitHubRepository,
@@ -118,6 +122,32 @@ const comment = (data: GitHubCommentPayload): GitHubCommentData => ({
 });
 
 /**
+ * Builds the durable request shared by storage and asynchronous callbacks.
+ * The normalized webhook selects the actionable issue, pull request, or
+ * comment rather than retaining GitHub's complete delivery body. Callers
+ * supply the delivery header because it is absent from GitHub's JSON payload.
+ * The creation timestamp is generated once so DynamoDB, timeout, and provision
+ * consumers all observe the same request identity and receipt information.
+ *
+ * @param webhook Validated and normalized GitHub content selected for processing.
+ * @param deliveryId GitHub delivery header used for storage and callback correlation.
+ * @returns The compact request persisted and sent through both event buses.
+ */
+function trackedRequest(webhook: GitHubWebhook, deliveryId: string): TrackedRequest {
+  const content = "comment" in webhook ? webhook.comment
+    : webhook.type === "issue" ? webhook.issue : webhook.pullRequest;
+  const subject = webhook.type === "issue" || webhook.type === "issue_comment"
+    ? webhook.issue : webhook.pullRequest;
+
+  return {
+    deliveryId, receivedAt: new Date().toISOString(),
+    webhook_type: webhook.type, id: content.id, value: content.body,
+    repositoryId: webhook.repository.id, repositoryFullName: webhook.repository.fullName,
+    issueOrPullRequestNumber: subject.number, senderId: webhook.sender.id,
+  };
+}
+
+/**
  * Validates a GitHub delivery before mapping it into domain data.
  * The parsed HTTP body stays unknown until its consumed fields have
  * passed the event-specific guards. Conversation comments on PRs
@@ -189,11 +219,12 @@ export function extractGitHubWebhook(
  * Acknowledges authenticated GitHub deliveries after payload validation.
  * Verification supplies trusted bytes before this handler reads event
  * content, while extraction stays responsible for domain validation.
- * Missing or invalid signatures receive 401; malformed supported payloads
- * receive 400. Bodies starting with @agent or /agent publish the original
- * JSON payload for provisioning; comments use their own body, not their
- * parent's description. Publication failures receive 500, while accepted
- * deliveries return 202 after any required publication completes.
+ * Command bodies starting with @agent or /agent become compact tracked inputs;
+ * comments use their own text and every command requires a delivery identity.
+ * Conditional inserts preserve the original request, and duplicate deliveries
+ * resume scheduling and publication using that saved input and deadline.
+ * Expired requests are acknowledged without dispatch. Failures return 500;
+ * completed earlier operations remain available to subsequent retries.
  */
 export async function handleGitHub(event: FunctionUrlRequest) {
   const sourceEvent =
@@ -231,13 +262,37 @@ export async function handleGitHub(event: FunctionUrlRequest) {
       : webhook.type === "issue" ? webhook.issue.body : webhook.pullRequest.body;
 
     if (text?.startsWith("@agent") || text?.startsWith("/agent")) {
+      const deliveryId = event.headers?.["x-github-delivery"]
+        ?? event.headers?.["X-GitHub-Delivery"];
+      if (!deliveryId) return respond(400, { message: "Missing X-GitHub-Delivery header" });
       try {
+        let request = trackedRequest(webhook, deliveryId);
+        const tableName = process.env.REQUESTS_TABLE_NAME;
+        if (!tableName?.trim()) throw new Error("Requests table name is required");
+
+        try {
+          await DynamoService.create(tableName, request);
+        } catch (error) {
+          if (!(error instanceof Error) || error.name !== "ConditionalCheckFailedException") throw error;
+          const saved = await DynamoService.get(tableName, deliveryId);
+          if (!saved) throw new Error("Tracked request not found after duplicate delivery");
+          // Resume the original input without forwarding its mutable launch journal.
+          request = {
+            deliveryId: saved.deliveryId, receivedAt: saved.receivedAt,
+            webhook_type: saved.webhook_type, id: saved.id, value: saved.value,
+            repositoryId: saved.repositoryId, repositoryFullName: saved.repositoryFullName,
+            issueOrPullRequestNumber: saved.issueOrPullRequestNumber, senderId: saved.senderId,
+          };
+        }
+        if (Date.parse(requestDeadline(request.receivedAt)) <= Date.now())
+          return respond(202, { message: "Tracked request has expired", deliveryId });
+        await SchedulerService.scheduleTimeout(request);
         await EventBridgeService.putEvent(
-          "agentic.setup", "ProvisionRequested", payload as Record<string, unknown>,
+          "agentic.setup", "ProvisionRequested", request,
         );
       } catch {
-        log("error", "github.provision.publish_failed", { sourceEvent });
-        return respond(500, { message: "Failed to publish provisioning request" });
+        log("error", "github.provision.request_failed", { sourceEvent });
+        return respond(500, { message: "Failed to store or dispatch provisioning request" });
       }
     }
 

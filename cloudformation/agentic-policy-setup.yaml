@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Managed EC2 permissions for agentic worker provisioning and cleanup.
+
+Resources:
+  WorkerEC2Policy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Launch tagged workers and terminate instances owned by agentic setup.
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: ['ec2:DescribeImages', 'ec2:DescribeInstances']
+            Resource: '*'
+          - Effect: Allow
+            Action: ec2:RunInstances
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}::image/*'
+              - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*'
+              - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*'
+          - Effect: Allow
+            Action: ec2:RunInstances
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+              - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:volume/*'
+              - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*'
+            Condition:
+              StringEquals:
+                aws:RequestTag/ManagedBy: agentic-setup
+          - Effect: Allow
+            Action: ec2:CreateTags
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+              - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:volume/*'
+              - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*'
+            Condition:
+              StringEquals:
+                ec2:CreateAction: RunInstances
+                aws:RequestTag/ManagedBy: agentic-setup
+          - Effect: Allow
+            Action: ec2:TerminateInstances
+            Resource: !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+            Condition:
+              StringEquals:
+                ec2:ResourceTag/ManagedBy: agentic-setup
+
+Outputs:
+  WorkerEC2PolicyArn:
+    Description: Managed policy ARN attached to the Lambda execution role.
+    Value: !Ref WorkerEC2Policy

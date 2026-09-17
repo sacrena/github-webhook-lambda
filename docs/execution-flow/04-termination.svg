@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="2826" viewBox="0 0 1600 2826" role="img" aria-labelledby="title desc">
+<title id="title">04  Delete by identity or sweep expired workers</title>
+<desc id="desc">Detailed execution call cards in reading order. Each card shows inputs, transformations and persistence. Dashed cards are assumed connections. Branches and alternatives are explicitly labeled. Read the linked Markdown for all field contracts and errors.</desc>
+<defs>
+<style>text{font-family:"Comic Sans MS","Segoe Print",cursive,sans-serif;fill:#fff}.title{font-size:32px;font-weight:700}.heading{font-size:23px;font-weight:700;fill:#ff4d00}.body{font-size:18px}.note{font-size:17px;fill:#bdbdbd}.outline{fill:#1a1a1a;stroke:#f5f5f5;stroke-width:2;stroke-linejoin:round}.echo{fill:none;stroke:#aaa;stroke-width:.7;opacity:.55}.assumed{stroke:#ff4d00;stroke-dasharray:10 7}.join{fill:none;stroke:#ff4d00;stroke-width:2;stroke-linecap:round}</style>
+</defs>
+<rect width="1600" height="2826" fill="#1a1a1a"/>
+<text x="60" y="58" class="title">04  Delete by identity or sweep expired workers</text>
+<text x="60" y="96" class="body">White outline = implemented function / AWS configuration   •   Dashed orange = assumed adapter</text>
+<text x="60" y="128" class="note">Read numbered cards in order; follow the explicit branch labels. Full field and failure contracts are in 04-termination.md.</text>
+<a href="04-termination.md"><g id="step-1" data-box="60,166,1480,180">
+<path class="outline assumed" d="M60 166 Q790 163 1540 167 L1541 346 Q800 349 59 346 Z"/>
+<path class="echo assumed" d="M63 169 L1537 165 L1539 343 L62 348 Z"/>
+<text x="84" y="205" class="heading">T1  ASSUMED timeout adapter → deleteInstance</text>
+<path d="M798 228 Q800 273 798 324" class="echo"/>
+<text x="84" y="254" class="body">PARSE  authenticated envelope; check timeout event</text>
+<text x="84" y="291" class="body">SELECT  detail.deliveryId; no caller-supplied instance ID</text>
+<text x="824" y="254" class="body">CALL  await EC2Service.deleteInstance(deliveryId)</text>
+<text x="824" y="291" class="body">NOTE  service itself does not validate expiry</text>
+</g></a>
+<path class="join" d="M42 236 Q26 236 28 301 L28 401 Q28 416 47 416 M39 410 L48 416 L39 423"/>
+<a href="04-termination.md"><g id="step-2" data-box="60,384,1480,180">
+<path class="outline" d="M60 384 Q790 381 1540 385 L1541 564 Q800 567 59 564 Z"/>
+<path class="echo" d="M63 387 L1537 383 L1539 561 L62 566 Z"/>
+<text x="84" y="423" class="heading">T2  deleteInstance: validate table → get journal</text>
+<path d="M798 446 Q800 491 798 542" class="echo"/>
+<text x="84" y="472" class="body">CALL  InstanceJournal.get with consistent read</text>
+<text x="84" y="509" class="body">CHOOSE  savedInstanceResource OR await findInstance</text>
+<text x="824" y="472" class="body">NONE / OBSERVED TERMINATED  return without termination</text>
+<text x="824" y="509" class="body">SAVED ID  bypasses discovery; status is unknown</text>
+</g></a>
+<path class="join" d="M42 454 Q26 454 28 519 L28 619 Q28 634 47 634 M39 628 L48 634 L39 641"/>
+<a href="04-termination.md"><g id="step-3" data-box="60,602,1480,180">
+<path class="outline" d="M60 602 Q790 599 1540 603 L1541 782 Q800 785 59 782 Z"/>
+<path class="echo" d="M63 605 L1537 601 L1539 779 L62 784 Z"/>
+<text x="84" y="641" class="heading">T3  Explicit deletion → record → return</text>
+<path d="M798 664 Q800 709 798 760" class="echo"/>
+<text x="84" y="690" class="body">SEND  TerminateInstances InstanceIds=[resourceId]</text>
+<text x="84" y="727" class="body">ADD  status termination_requested; local timestamps</text>
+<text x="824" y="690" class="body">STORE  record writes only instanceId; not lifecycle fields</text>
+<text x="824" y="727" class="body">ERROR  record can fail after AWS accepts termination</text>
+</g></a>
+<path class="join" d="M42 672 Q26 672 28 737 L28 837 Q28 852 47 852 M39 846 L48 852 L39 859"/>
+<a href="04-termination.md"><g id="step-4" data-box="60,820,1480,180">
+<path class="outline" d="M60 820 Q790 817 1540 821 L1541 1000 Q800 1003 59 1000 Z"/>
+<path class="echo" d="M63 823 L1537 819 L1539 997 L62 1002 Z"/>
+<text x="84" y="859" class="heading">C1  Alternative: recurring cleanup schedule</text>
+<path d="M798 882 Q800 927 798 978" class="echo"/>
+<text x="84" y="908" class="body">DEFAULT  every minute; group agentic-cleanups</text>
+<text x="84" y="945" class="body">PUBLISH  {} to cleanup bus with CleanupRequested</text>
+<text x="824" y="908" class="body">RULE  agentic.setup + CleanupRequested → /cleanup</text>
+<text x="824" y="945" class="body">AUTH  API key; body and caller selectors are ignored</text>
+</g></a>
+<path class="join" d="M42 890 Q26 890 28 955 L28 1055 Q28 1070 47 1070 M39 1064 L48 1070 L39 1077"/>
+<a href="04-termination.md"><g id="step-5" data-box="60,1038,1480,180">
+<path class="outline" d="M60 1038 Q790 1035 1540 1039 L1541 1218 Q800 1221 59 1218 Z"/>
+<path class="echo" d="M63 1041 L1537 1037 L1539 1215 L62 1220 Z"/>
+<text x="84" y="1077" class="heading">C2  handleCleanup → cleanupExpiredInstances</text>
+<path d="M798 1100 Q800 1145 798 1196" class="echo"/>
+<text x="84" y="1126" class="body">CHECK  API key, fixed region and requests table</text>
+<text x="84" y="1163" class="body">INIT  result arrays; seen IDs; EC2 client; NextToken</text>
+<text x="824" y="1126" class="body">QUERY  ManagedBy=agentic-setup; five live/stopped states</text>
+<text x="824" y="1163" class="body">LOOP  every page; flatten reservations and instances</text>
+</g></a>
+<path class="join" d="M42 1108 Q26 1108 28 1173 L28 1273 Q28 1288 47 1288 M39 1282 L48 1288 L39 1295"/>
+<a href="04-termination.md"><g id="step-6" data-box="60,1256,1480,180">
+<path class="outline" d="M60 1256 Q790 1253 1540 1257 L1541 1436 Q800 1439 59 1436 Z"/>
+<path class="echo" d="M63 1259 L1537 1255 L1539 1433 L62 1438 Z"/>
+<text x="84" y="1295" class="heading">C3  Deduplicate IDs → expiredInstanceTags</text>
+<path d="M798 1318 Q800 1363 798 1414" class="echo"/>
+<text x="84" y="1344" class="body">MISSING / SEEN ID  ignore; else add to seen</text>
+<text x="84" y="1381" class="body">TAGS  Object.fromEntries; test ownership and identity</text>
+<text x="824" y="1344" class="body">REQUIRE  UTC-shaped parseable deadline &lt;= now</text>
+<text x="824" y="1381" class="body">REJECT  missing tags / future / terminated → skipped</text>
+</g></a>
+<path class="join" d="M42 1326 Q26 1326 28 1391 L28 1491 Q28 1506 47 1506 M39 1500 L48 1506 L39 1513"/>
+<a href="04-termination.md"><g id="step-7" data-box="60,1474,1480,180">
+<path class="outline" d="M60 1474 Q790 1471 1540 1475 L1541 1654 Q800 1657 59 1654 Z"/>
+<path class="echo" d="M63 1477 L1537 1473 L1539 1651 L62 1656 Z"/>
+<text x="84" y="1513" class="heading">C4  cleanupInstance: fresh ID-specific recheck</text>
+<path d="M798 1536 Q800 1581 798 1632" class="echo"/>
+<text x="84" y="1562" class="body">SEND  DescribeInstances InstanceIds=[id]</text>
+<text x="84" y="1599" class="body">FIND  matching instance; rerun expiredInstanceTags</text>
+<text x="824" y="1562" class="body">CHANGED / MISSING / INELIGIBLE  append skipped; return</text>
+<text x="824" y="1599" class="body">VALID  {deliveryId, timeoutAt, token} from fresh tags</text>
+</g></a>
+<path class="join" d="M42 1544 Q26 1544 28 1609 L28 1709 Q28 1724 47 1724 M39 1718 L48 1724 L39 1731"/>
+<a href="04-termination.md"><g id="step-8" data-box="60,1692,1480,180">
+<path class="outline" d="M60 1692 Q790 1689 1540 1693 L1541 1872 Q800 1875 59 1872 Z"/>
+<path class="echo" d="M63 1695 L1537 1691 L1539 1869 L62 1874 Z"/>
+<text x="84" y="1731" class="heading">C5  Tracking read does not block orphan deletion</text>
+<path d="M798 1754 Q800 1799 798 1850" class="echo"/>
+<text x="84" y="1780" class="body">CALL  InstanceJournal.get(ownership.deliveryId, table)</text>
+<text x="84" y="1817" class="body">MATCH  journal deliveryId and token to tags</text>
+<text x="824" y="1780" class="body">FAILURE  append trackingFailed; still continue</text>
+<text x="824" y="1817" class="body">NOTE  saved instanceId is not compared to candidate</text>
+</g></a>
+<path class="join" d="M42 1762 Q26 1762 28 1827 L28 1927 Q28 1942 47 1942 M39 1936 L48 1942 L39 1949"/>
+<a href="04-termination.md"><g id="step-9" data-box="60,1910,1480,180">
+<path class="outline" d="M60 1910 Q790 1907 1540 1911 L1541 2090 Q800 2093 59 2090 Z"/>
+<path class="echo" d="M63 1913 L1537 1909 L1539 2087 L62 2092 Z"/>
+<text x="84" y="1949" class="heading">C6  Terminate expired instance</text>
+<path d="M798 1972 Q800 2017 798 2068" class="echo"/>
+<text x="84" y="1998" class="body">SEND  TerminateInstances InstanceIds=[id]</text>
+<text x="84" y="2035" class="body">SUCCESS  append terminationRequested</text>
+<text x="824" y="1998" class="body">FAILURE  outer per-instance catch appends failed</text>
+<text x="824" y="2035" class="body">CONTINUE  other candidates and remaining pages</text>
+</g></a>
+<path class="join" d="M42 1980 Q26 1980 28 2045 L28 2145 Q28 2160 47 2160 M39 2154 L48 2160 L39 2167"/>
+<a href="04-termination.md"><g id="step-10" data-box="60,2128,1480,180">
+<path class="outline" d="M60 2128 Q790 2125 1540 2129 L1541 2308 Q800 2311 59 2308 Z"/>
+<path class="echo" d="M63 2131 L1537 2127 L1539 2305 L62 2310 Z"/>
+<text x="84" y="2167" class="heading">C7  Matching journal only: map and record</text>
+<path d="M798 2190 Q800 2235 798 2286" class="echo"/>
+<text x="84" y="2216" class="body">CALL  instanceResource(current, ownership, token, time)</text>
+<text x="84" y="2253" class="body">OVERRIDE  status; add terminationRequestedAt</text>
+<text x="824" y="2216" class="body">STORE  resourceLaunch.instanceId only</text>
+<text x="824" y="2253" class="body">WRITE FAILURE  append trackingFailed; keep accepted ID</text>
+</g></a>
+<path class="join" d="M42 2198 Q26 2198 28 2263 L28 2363 Q28 2378 47 2378 M39 2372 L48 2378 L39 2385"/>
+<a href="04-termination.md"><g id="step-11" data-box="60,2346,1480,180">
+<path class="outline" d="M60 2346 Q790 2343 1540 2347 L1541 2526 Q800 2529 59 2526 Z"/>
+<path class="echo" d="M63 2349 L1537 2345 L1539 2523 L62 2528 Z"/>
+<text x="84" y="2385" class="heading">C8  Sweep response → endpoint status</text>
+<path d="M798 2408 Q800 2453 798 2504" class="echo"/>
+<text x="84" y="2434" class="body">RETURN  terminationRequested / skipped / failed / trackingFailed</text>
+<text x="84" y="2471" class="body">LOG  array counts; arrays can overlap</text>
+<text x="824" y="2434" class="body">HTTP  500 if failed or trackingFailed; otherwise 200</text>
+<text x="824" y="2471" class="body">PAGE ERROR  generic 500; earlier actions may remain</text>
+</g></a>
+<path class="join" d="M42 2416 Q26 2416 28 2481 L28 2581 Q28 2596 47 2596 M39 2590 L48 2596 L39 2603"/>
+<a href="04-termination.md"><g id="step-12" data-box="60,2564,1480,180">
+<path class="outline" d="M60 2564 Q790 2561 1540 2565 L1541 2744 Q800 2747 59 2744 Z"/>
+<path class="echo" d="M63 2567 L1537 2563 L1539 2741 L62 2746 Z"/>
+<text x="84" y="2603" class="heading">T4  Common AWS terminal boundary</text>
+<path d="M798 2626 Q800 2671 798 2722" class="echo"/>
+<text x="84" y="2652" class="body">AWS  termination acceptance → shutting-down → terminated</text>
+<text x="84" y="2689" class="body">DELETE  configured root disk; primary ENI lifecycle</text>
+<text x="824" y="2652" class="body">NO  application waiter or attachment deletion check</text>
+<text x="824" y="2689" class="body">RETAIN  request journal; no persisted terminal status</text>
+</g></a>
+<a href="04-termination.md"><text x="60" y="2806" class="note">Open 04-termination.md • Current working-tree inspection, 2026-09-17 • Excalidraw-style SVG; no live AWS execution asserted.</text></a>
+</svg>

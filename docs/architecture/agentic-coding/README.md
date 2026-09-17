@@ -1,55 +1,32 @@
-# Agentic coding on temporary EC2 workers
+# From a coding request to a pull request
 
-A person requests a coding task in GitHub. AWS creates a fresh machine, Ansible installs its tools, and a Kotlin script fetches the code and runs the agent. The script publishes a branch and pull request, saves the result, and reports completion. AWS then removes the worker.
+Imagine a maintainer comments “/agent fix the failing test” on issue 456. A fresh machine picks up the task, installs its tools, checks out the code, and runs a coding agent. If the checks pass, it publishes a branch and pull request. It saves the outcome and is then removed.
 
-**Status: proposed implementation.** These guides capture the decisions from the project discussion. Repository inspection found earlier architecture diagrams, but no implementation of this intake, worker or cleanup flow. “How it works” below describes the target behavior to build, not a deployed feature.
+That is the workflow these guides propose. The current application already accepts commands and manages worker launch, timeout, and cleanup. Installing tools, obtaining GitHub access, running the agent, publishing results, and reporting completion are the next pieces to build. Follow [the execution guide](../../execution-flow/README.md) for today’s behavior.
 
-## Read in this order
+## Follow the planned job
 
-Each scope has a short guide and a matching diagram. The guide embeds its diagram, and the SVG links back to the guide.
+| Chapter | What happens next |
+| --- | --- |
+| [1. Accepting a job](01-job-intake/README.md) | Decide whether the request is allowed and save a clear assignment |
+| [2. Giving it GitHub access](02-github-access/README.md) | Let the assigned worker read and publish to its repository |
+| [3. Preparing the machine](03-ec2-setup/README.md) | Install a known set of tools on a fresh worker |
+| [4. Running the task](04-kotlin-runner/README.md) | Fetch context, run the agent, check the change, and publish |
+| [5. Saving the result and cleaning up](05-completion-cleanup/README.md) | Preserve the outcome before removing the machine |
+| [6. Building it in stages](06-build-plan/README.md) | Prove each missing piece before enabling routine jobs |
 
-| Scope | Guide | Diagram |
-| --- | --- | --- |
-| 1. From GitHub event to coding job | [Read guide](01-job-intake/README.md) | [Open SVG](01-job-intake/flow.svg) |
-| 2. GitHub App and repository access | [Read guide](02-github-access/README.md) | [Open SVG](02-github-access/flow.svg) |
-| 3. Fresh EC2 setup with Ansible | [Read guide](03-ec2-setup/README.md) | [Open SVG](03-ec2-setup/flow.svg) |
-| 4. The Kotlin job runner | [Read guide](04-kotlin-runner/README.md) | [Open SVG](04-kotlin-runner/flow.svg) |
-| 5. Completion and EC2 cleanup | [Read guide](05-completion-cleanup/README.md) | [Open SVG](05-completion-cleanup/flow.svg) |
-| 6. Steps to deliver the project | [Read guide](06-build-plan/README.md) | [Open SVG](06-build-plan/flow.svg) |
+## One machine for one attempt
 
-Read the build plan after the overview if you want to start implementation immediately. Read the other scopes when working on that part.
+Each job gets a fresh EC2 instance. Ansible, a tool for repeatable machine setup, installs the development tools and our Kotlin runner. The runner is the script that guides the job from checkout through publication.
 
-## The choices we have made
+A GitHub App provides temporary repository access. AWS handlers keep the App’s private key, track the assignment, and manage the worker. These handlers are what the guides call the control service.
 
-- One fresh EC2 instance performs one coding job.
-- Use an AWS-managed Amazon Linux image and install tools with Ansible. No custom image or launch template.
-- The runner is our Kotlin script: fetch code, run the job, check it and publish the result.
-- Lambda handles event processing, saved job definitions, provisioning and termination. These can be separate handlers so accepting an event never waits for a job to finish.
-- A GitHub App gives temporary repository access. Its private key stays in the control service.
-- Publish to a job branch and open a PR for review. End the worker immediately after its attempt.
-- Use an independent deadline check to clean up machines that cannot report completion.
+The worker ends after its attempt, whether the task succeeds or fails. A reviewer declining the PR later does not leave a machine running. Follow-up work starts a new job.
 
-“Control service” means the AWS handlers that track the job, issue credentials and manage EC2. “Bootstrap bundle” means the versioned Ansible files and runner script downloaded during startup.
+## Earlier design material
 
-## One example to keep in mind
+The original design considered Amazon Linux; the current launch code uses pinned Ubuntu ARM64. Startup scripts must be tested against the image actually selected for implementation.
 
-A permitted maintainer comments “/agent fix the failing test” on issue 456. The receiver saves job 123 against a specific source commit. A new machine installs the selected tool versions, receives access to that repository, and runs the Kotlin script.
+The older [shared-machine architecture](01-shared-ec2-architecture.svg), [shared-machine flow](02-shared-ec2-job-flow.svg), [temporary-machine architecture](03-ephemeral-ec2-architecture.svg), and [temporary-machine flow](04-ephemeral-ec2-job-flow.svg) compare a GitHub Actions runner approach. Their prepared-image timing and pricing assumptions are historical references. The chapter diagrams also illustrate proposals, rather than proving deployed behavior.
 
-If the task passes its checks, the result is a branch such as agent/job-123 and a PR explaining the change. If the task fails, the result is a failure reason and any saved output. Either way, the worker ends. A later review request starts a separate job.
-
-## Earlier comparison diagrams
-
-The four existing SVGs are preserved as earlier reference material:
-
-- [Shared machine architecture](01-shared-ec2-architecture.svg)
-- [Shared machine job flow](02-shared-ec2-job-flow.svg)
-- [Earlier temporary-machine architecture](03-ephemeral-ec2-architecture.svg)
-- [Earlier temporary-machine job flow](04-ephemeral-ec2-job-flow.svg)
-
-They describe a GitHub Actions runner/prepared-image approach and include earlier pricing assumptions. Their runner registration, GitHub waiting list, prepared-image startup timing and image costs do **not** describe the selected Kotlin-script design. Use the six scope guides above for this project.
-
-## Evidence and remaining choices
-
-The guides were written from this discussion, the existing architecture material and a search of application source, workflows and scripts. Provider documentation is linked where service contracts matter. Package versions, AWS policies and network configuration must be validated during implementation; this documentation does not prove a deployment exists.
-
-Before rollout, select the coding-agent CLI, repository allowlist, AWS region/instance size, verified worker authentication mechanism, time limits and result retention. The [build plan](06-build-plan/README.md) turns these into concrete completion checks.
+Before enabling coding jobs, choose the agent CLI, approved repositories and requesters, worker authentication, capacity limit, and result retention. The build plan turns those choices into checks.

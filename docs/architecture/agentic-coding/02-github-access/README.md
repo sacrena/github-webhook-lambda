@@ -1,72 +1,40 @@
-# GitHub App and repository access
+# 2. Giving the worker access to GitHub
 
-[Overview](../README.md) · [Previous: From GitHub event to coding job](../01-job-intake/README.md) · [Next: Fresh EC2 setup with Ansible](../03-ec2-setup/README.md)
+[Overview](../README.md) · [Previous: intake](../01-job-intake/README.md) · [Next: machine setup](../03-ec2-setup/README.md)
 
-> Proposed behavior to implement. This guide does not describe deployed functionality.
+The worker has an assignment, but it still needs permission to fetch code and publish a result. The proposed GitHub App supplies that identity. This access flow is not implemented yet.
 
-Give each worker temporary access to the one repository assigned to its job.
+The webhook and the App have different jobs: the webhook delivers the request; the App authorizes repository operations. There is no GitHub App executable to install on EC2.
 
-[![GitHub App and repository access](flow.svg)](flow.svg)
+## Set up the identity once
 
-[Open full-size SVG](flow.svg)
+Create an organization-owned GitHub App and install it on the selected repositories. Keep its private key in Secrets Manager, with the App ID and installation mapping in the control service’s configuration.
 
-## Purpose
-
-The GitHub App is the identity used by automation. The webhook tells AWS that something happened; the App lets the worker read the repository and publish its work.
-
-You create the identity in GitHub settings. The software that uses it lives in your AWS control service and worker.
-
-## Configure it once
-
-Create an organization-owned GitHub App, generate its private key, and install it only on the selected repositories. Save the private key in AWS Secrets Manager and keep the App ID and installation mapping in control-service configuration.
-
-If you retain the repository webhook, the App does not need its own webhook subscription.
-
-| Repository permission | When needed |
+| Permission | What it enables |
 | --- | --- |
-| Contents: read and write | Clone private code and push a branch |
-| Pull requests: read and write | Read PRs and open or update a PR |
-| Issues: read | Read issues and their comments |
-| Metadata: read | Required baseline access |
+| Contents: read and write | Fetch code and push the result branch |
+| Pull requests: read and write | Read PR context and create a PR |
+| Issues: read | Read issue text and comments |
+| Metadata: read | GitHub’s required baseline access |
 
-Add Issues write only if the system must write issue comments. Review the permission required by the exact comment endpoint; issue discussions and PR review comments use different API routes. Workflow-file changes require separate consideration and are outside the initial permission set.
+Add comment-writing permissions only if progress comments are part of the product. Workflow-file changes need separate consideration.
 
-Repository write access is not restricted to an agent branch by the token itself. Configure repository rules to protect the default and release branches, keep the App out of bypass lists, and enforce the output branch in the publishing script.
+A write token is not limited to an agent branch by itself. Repository rules should protect default and release branches, and the publishing script should enforce the assigned output branch.
 
-## How the worker gets access
+## Hand out access when the worker is ready
 
-1. The worker calls your control endpoint to claim its job.
-2. The endpoint authenticates the AWS request and checks the worker assignment, repository and deadline.
-3. The control service uses the App private key to create a short signed identity proof, then exchanges it with GitHub for an installation token.
-4. It requests access only to the target repository and the permissions that job needs.
-5. The worker uses the token for Git and GitHub API requests.
+After setup, the worker asks the control service to claim its job. The service must verify that this worker owns that active assignment and that its deadline has not passed.
 
-Installation tokens normally expire after one hour. Request one after bootstrap finishes. If a job runs longer, the control service must recheck the active job before issuing a fresh token. Ending the job does not itself expire a token; explicitly revoke it when possible.
+Only then does the service use the App key to request a temporary installation token for the assigned repository. The private key stays in the control service. Installation tokens normally expire after one hour; renewal should repeat the assignment and deadline checks.
 
-## What is installed on EC2
+Worker identity needs an implementation decision. Knowing a job ID or supplying an instance ID is not proof of ownership, especially when workers share an AWS role.
 
-Git is required. GitHub CLI is optional; the Kotlin script can call GitHub's HTTPS API directly. There is no GitHub App executable to install.
+## Use the token without leaving it behind
 
-Configure Git with a credential helper or askpass helper that reads a temporary credential. Keep the clone URL clean, such as https://github.com/org/repository.git. Do not put a token in the clone URL, command arguments, user-data or logs; a token in the remote URL can remain in Git configuration.
+Git uses a temporary credential helper, keeping the remote URL clean: `https://github.com/org/repository.git`. Tokens should not appear in clone URLs, command arguments, startup scripts, or logs. GitHub CLI is optional; the Kotlin runner can also call GitHub’s API directly.
 
-The optional GitHub CLI accepts a token through its process environment. Pass credentials only to commands that need them, rather than automatically giving every agent/build process the publishing token. Docker access and repository code execution affect the strength of that separation.
+Pass publishing credentials only to commands that need them. Repository code and Docker access affect how strongly processes can be separated on the worker, so that boundary needs testing.
 
-## What needs to be decided during implementation
+If access is revoked or renewal fails, save the reason and end the attempt. Revoke temporary access when possible at completion. The coding agent’s provider credential is a separate credential with its own delivery path.
 
-AWS authentication alone is insufficient if all workers share the same role and may claim any job ID. The control endpoint needs a verified worker-to-job binding. One option is a per-job claim secret in a separately scoped secret location; another is validated instance-specific session identity with assignment checks. A plain instance ID supplied by the caller is not proof.
-
-A restarted worker should be able to resume the same active claim safely. A different worker must not take it over merely by knowing the job ID.
-
-## Edge cases
-
-An uninstalled App, removed repository or expired token stops authenticated access. Report the reason and clean up the worker. Refresh a token only for a still-authorized job. Never send the App private key to EC2.
-
-The coding agent's provider credential is separate from the GitHub credential.
-
-## Related code and references
-
-The token issuer and worker-authentication check are proposed components, not existing implementations.
-
-GitHub: [installation tokens](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token), [installation authentication and Git access](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation).
-
-[Overview](../README.md) · [Previous: From GitHub event to coding job](../01-job-intake/README.md) · [Next: Fresh EC2 setup with Ansible](../03-ec2-setup/README.md)
+See GitHub’s [installation-token guide](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token) and [Git authentication guidance](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation).
