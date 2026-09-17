@@ -3,7 +3,6 @@ import test from "node:test";
 import { EC2Client, DescribeInstancesCommand, TerminateInstancesCommand } from "@aws-sdk/client-ec2";
 import { EC2Service } from "../../dist/aws/EC2Service.js";
 import { InstanceJournal } from "../../dist/provision/InstanceJournal.js";
-import { AttachmentCleanup } from "../../dist/provision/AttachmentCleanup.js";
 import { handler } from "../../dist/index.js";
 import {
   EC2_DELIVERY_ID_TAG_KEY, EC2_LAUNCH_REQUEST_ID_TAG_KEY,
@@ -35,8 +34,6 @@ test.beforeEach((t) => {
   process.env.AWS_REGION = "us-east-1";
   process.env.REQUESTS_TABLE_NAME = "requests";
   process.env.PROVISION_API_KEY = "test-key";
-  t.mock.method(AttachmentCleanup, "volumes", async () => {});
-  t.mock.method(AttachmentCleanup, "interfaces", async () => {});
 });
 
 test("cleanup paginates, rechecks expiry, cleans stopped orphans, and continues after failures", async (t) => {
@@ -89,12 +86,26 @@ test("cleanup paginates, rechecks expiry, cleans stopped orphans, and continues 
   assert.deepEqual(result.skipped, ["future", "invalid", "foreign", "missing", "extended"]);
   assert.equal(records[0].resource.status, "termination_requested");
   assert.equal(records[0].resource.resourceId, "expired");
+  assert.deepEqual(result.queryFailed, []);
+});
+
+test("instance discovery failures return partial results without attachment scans", async (t) => {
+  const calls = t.mock.method(EC2Client.prototype, "send", async () => { throw new Error("query unavailable"); });
+  const response = await handler({
+    rawPath: "/cleanup", headers: { "X-Api-Key": "test-key" }, requestContext: { http: { method: "POST" } },
+  });
+  assert.equal(response.statusCode, 500);
+  assert.deepEqual(JSON.parse(response.body), {
+    terminationRequested: [], skipped: [], failed: [], trackingFailed: [], queryFailed: ["instances"],
+  });
+  assert.equal(calls.mock.callCount(), 1);
+  assert.ok(calls.mock.calls[0].arguments[0] instanceof DescribeInstancesCommand);
 });
 
 test("cleanup endpoint authenticates before querying and ignores caller resource selectors", async (t) => {
   const result = {
     terminationRequested: ["i-expired"], skipped: [], failed: [], trackingFailed: [],
-    deletedVolumes: [], deletedNetworkInterfaces: [], queryFailed: [],
+    queryFailed: [],
   };
   const cleanup = t.mock.method(EC2Service, "cleanupExpiredInstances", async () => result);
   const event = { rawPath: "/cleanup", requestContext: { http: { method: "POST" } },
