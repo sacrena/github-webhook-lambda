@@ -1,7 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Provisions shared secrets, the agentic Lambda, DynamoDB storage, and EventBridge intake.
+Description: Provisions shared secrets, worker networking, the agentic Lambda, DynamoDB storage, and EventBridge intake.
 
 Parameters:
+  CleanupScheduleExpression:
+    Type: String
+    Default: rate(1 minute)
+    Description: EventBridge Scheduler rate or cron expression for recurring cleanup requests.
   ProvisionApiKeyValue:
     Type: String
     NoEcho: true
@@ -24,6 +28,11 @@ Parameters:
     Description: Secret GitHub uses to sign webhook deliveries.
 
 Resources:
+  EC2PolicySetup:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: agentic-policy-setup.yaml
+
   SecretsSetup:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -37,6 +46,11 @@ Resources:
     Properties:
       TemplateURL: agentic-dynamodb-setup.yaml
 
+  SecurityGroupSetup:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: agentic-security-group-setup.yaml
+
   LambdaSetup:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -49,6 +63,8 @@ Resources:
         ProvisionApiKeyArn: !GetAtt SecretsSetup.Outputs.ProvisionApiKeyArn
         RequestsTableName: !GetAtt DynamoSetup.Outputs.RequestsTableName
         RequestsTableArn: !GetAtt DynamoSetup.Outputs.RequestsTableArn
+        WorkerEC2PolicyArn: !GetAtt EC2PolicySetup.Outputs.WorkerEC2PolicyArn
+        WorkerSecurityGroupId: !GetAtt SecurityGroupSetup.Outputs.WorkerSecurityGroupId
 
   EventSetup:
     Type: AWS::CloudFormation::Stack
@@ -57,8 +73,21 @@ Resources:
       Parameters:
         LambdaFunctionUrl: !GetAtt LambdaSetup.Outputs.FunctionUrl
         ApiKeySecretArn: !GetAtt SecretsSetup.Outputs.ProvisionApiKeyArn
+        CleanupScheduleExpression: !Ref CleanupScheduleExpression
 
 Outputs:
+  CleanupUrl:
+    Description: API-key authenticated POST /cleanup endpoint.
+    Value: !GetAtt EventSetup.Outputs.CleanupUrl
+  CleanupEventBusName:
+    Description: Dedicated bus receiving recurring cleanup events.
+    Value: !GetAtt EventSetup.Outputs.CleanupEventBusName
+  TimeoutEventBusName:
+    Description: Dedicated bus receiving scheduled timeout events.
+    Value: !GetAtt EventSetup.Outputs.TimeoutEventBusName
+  TimeoutUrl:
+    Description: API-key authenticated POST /timeout endpoint.
+    Value: !GetAtt EventSetup.Outputs.TimeoutUrl
   EventBusName:
     Description: Dedicated bus accepting events for the provisioning endpoint.
     Value: !GetAtt EventSetup.Outputs.EventBusName
