@@ -1,4 +1,4 @@
-import type { Instance, Tag } from "@aws-sdk/client-ec2";
+import type { Instance } from "@aws-sdk/client-ec2";
 import type { InstanceLaunchJournal } from "./InstanceLaunch.js";
 import type { InstanceLaunch } from "./InstanceLaunch.js";
 import type { ProvisionedResource } from "./ProvisionedResource.js";
@@ -21,18 +21,7 @@ import {
  */
 export function expiredInstanceTags(instance: Instance, now: number) {
   if (!instance.InstanceId || instance.State?.Name === EC2_INSTANCE_STATE_TERMINATED) return undefined;
-  return expiredResourceTags(instance.Tags, now);
-}
-
-/**
- * Reads ownership and expiry consistently across worker resource categories.
- * Instances and detached attachments use the same launch-time tag contract
- * so cleanup can discover them without a functioning request database.
- * Missing or invalid ownership and deadline metadata is never guessed safe;
- * callers additionally check resource state before requesting deletion.
- */
-export function expiredResourceTags(resourceTags: Tag[] | undefined, now: number) {
-  const tags = Object.fromEntries((resourceTags ?? []).map((tag) => [tag.Key, tag.Value]));
+  const tags = Object.fromEntries((instance.Tags ?? []).map((tag) => [tag.Key, tag.Value]));
   if (tags[EC2_MANAGEMENT_TAG_KEY] !== EC2_MANAGEMENT_TAG_VALUE || !tags[EC2_DELIVERY_ID_TAG_KEY]?.trim()
     || !tags[EC2_TIMEOUT_AT_TAG_KEY] || !/^\d{4}-\d{2}-\d{2}T.*Z$/.test(tags[EC2_TIMEOUT_AT_TAG_KEY])) return undefined;
 
@@ -49,8 +38,8 @@ export function expiredResourceTags(resourceTags: Tag[] | undefined, now: number
  * AWS state determines whether termination is confirmed or still pending;
  * accepting a terminate request alone never marks a worker terminated.
  * Identity, region, deadline, and state are sufficient to manage the worker.
- * Disks and interfaces use delete-on-termination settings, so their historical
- * identifiers are not retained as part of the instance lifecycle.
+ * AWS manages attached resources according to their termination settings;
+ * this contract retains no disk or interface identities for separate cleanup.
  */
 export function instanceResource(
   instance: Instance, config: Pick<InstanceLaunch, "deliveryId" | "region" | "timeoutAt">,
