@@ -84,10 +84,11 @@ test("creation tags owned resources, enables root deletion on termination, and t
       [EC2_LAUNCH_REQUEST_ID_TAG_KEY]: state.journal.token, [EC2_TIMEOUT_AT_TAG_KEY]: config.timeoutAt,
     });
   }
-  assert.deepEqual(launch.BlockDeviceMappings, [{ DeviceName: "/dev/sda1", Ebs: { VolumeSize: 50, VolumeType: "gp3", DeleteOnTermination: true } }]);
+  assert.deepEqual(launch.BlockDeviceMappings, [{
+    DeviceName: "/dev/sda1", Ebs: { VolumeSize: 50, VolumeType: "gp3", DeleteOnTermination: true },
+  }]);
   assert.equal(launch.ImageId, "ami-0246d714afcc1d494");
   assert.equal(launch.InstanceType, "m8g.xlarge");
-  assert.ok(launch.BlockDeviceMappings.every((mapping) => mapping.Ebs.DeleteOnTermination));
   assert.equal(launch.NetworkInterfaces, undefined);
   assert.deepEqual(launch.SecurityGroupIds, ["sg-test"]);
   const calls = state.commands.length;
