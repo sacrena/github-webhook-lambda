@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
 import { EventBridgeService } from "../../dist/aws/EventBridgeService.js";
+import { SchedulerService } from "../../dist/aws/SchedulerService.js";
+import { DynamoService } from "../../dist/aws/DynamoService.js";
 
 import {
   extractGitHubWebhook,
@@ -10,6 +12,7 @@ import {
 
 process.env.GITHUB_WEBHOOK_SECRET = "test-webhook-secret";
 process.env.EVENT_BUS_NAME = "test-bus";
+process.env.REQUESTS_TABLE_NAME = "requests";
 
 const user = {
   id: 1,
@@ -72,6 +75,7 @@ function githubRequest(sourceEvent, payload, options = {}) {
   return handleGitHub({
     headers: {
       "x-github-event": sourceEvent,
+      "x-github-delivery": "delivery-1",
       "x-hub-signature-256": `sha256=${digest}`,
     },
     body,
@@ -79,8 +83,14 @@ function githubRequest(sourceEvent, payload, options = {}) {
   });
 }
 
-test("agent prefixes publish the original payload across supported content types", async (t) => {
-  const publish = t.mock.method(EventBridgeService, "putEvent", async () => "event-1");
+test("agent prefixes store and dispatch the same tracked request in order", async (t) => {
+  const operations = [];
+  const store = t.mock.method(DynamoService, "create", async () => { operations.push("store"); });
+  const schedule = t.mock.method(SchedulerService, "scheduleTimeout", async () => { operations.push("schedule"); });
+  const publish = t.mock.method(EventBridgeService, "putEvent", async () => {
+    operations.push("publish");
+    return "event-1";
+  });
   const base = { action: "created", repository, sender: user, installation: { id: 99 } };
   for (const body of ["@agent fix this", "/agent\nfix this", "@agent", "/agent"]) {
     const deliveries = {
@@ -95,13 +105,34 @@ test("agent prefixes publish the original payload across supported content types
         body: Buffer.from(JSON.stringify(payload)).toString("base64"), isBase64Encoded: true,
       });
       assert.equal(response.statusCode, 202);
+      assert.equal(store.mock.callCount(), before + 1);
       assert.equal(publish.mock.callCount(), before + 1);
-      assert.deepEqual(publish.mock.calls.at(-1).arguments, ["agentic.setup", "ProvisionRequested", payload]);
+      assert.equal(schedule.mock.callCount(), before + 1);
+      const request = store.mock.calls.at(-1).arguments[1];
+      const content = sourceEvent.includes("comment") ? payload.comment
+        : sourceEvent === "issues" ? payload.issue : payload.pull_request;
+      assert.equal(store.mock.calls.at(-1).arguments[0], "requests");
+      assert.deepEqual(request, {
+        deliveryId: "delivery-1", receivedAt: request.receivedAt,
+        webhook_type: JSON.parse(response.body).webhook.type,
+        id: content.id, value: content.body,
+        repositoryId: repository.id, repositoryFullName: repository.full_name,
+        issueOrPullRequestNumber: sourceEvent.includes("comment")
+          ? (payload.issue ?? payload.pull_request).number : content.number,
+        senderId: user.id,
+      });
+      assert.match(request.receivedAt, /^\d{4}-\d{2}-\d{2}T/);
+      assert.deepEqual(schedule.mock.calls.at(-1).arguments, [request]);
+      assert.deepEqual(publish.mock.calls.at(-1).arguments,
+        ["agentic.setup", "ProvisionRequested", request]);
+      assert.deepEqual(operations.slice(-3), ["store", "schedule", "publish"]);
     }
   }
 });
 
 test("noncommands, invalid deliveries, and parent commands do not publish", async (t) => {
+  const store = t.mock.method(DynamoService, "create", async () => {});
+  const schedule = t.mock.method(SchedulerService, "scheduleTimeout", async () => {});
   const publish = t.mock.method(EventBridgeService, "putEvent", async () => "event-1");
   const base = { action: "created", repository, sender: user };
   for (const body of [null, "", "please @agent", " /agent fix", "@Agent fix"]) {
@@ -115,14 +146,66 @@ test("noncommands, invalid deliveries, and parent commands do not publish", asyn
     headers: { "x-github-event": "issues", "x-hub-signature-256": "invalid" },
   })).statusCode, 401);
   assert.equal(publish.mock.callCount(), 0);
+  assert.equal(schedule.mock.callCount(), 0);
+  assert.equal(store.mock.callCount(), 0);
 });
 
 test("publication failures return a server error", async (t) => {
+  t.mock.method(DynamoService, "create", async () => {});
+  const schedule = t.mock.method(SchedulerService, "scheduleTimeout", async () => {});
   t.mock.method(EventBridgeService, "putEvent", async () => { throw new Error("AWS failure"); });
-  const payload = { action: "opened", repository, sender: user, issue: { ...issue, body: "/agent fix" } };
+  const payload = {
+    action: "opened", repository, sender: user, installation: { id: 99 },
+    issue: { ...issue, body: "/agent fix" },
+  };
   const response = await githubRequest("issues", payload);
   assert.equal(response.statusCode, 500);
-  assert.equal(JSON.parse(response.body).message, "Failed to publish provisioning request");
+  assert.equal(schedule.mock.callCount(), 1);
+  assert.equal(JSON.parse(response.body).message, "Failed to store or dispatch provisioning request");
+});
+
+test("timeout registration failure returns 500 without publishing provisioning", async (t) => {
+  const store = t.mock.method(DynamoService, "create", async () => {});
+  const publish = t.mock.method(EventBridgeService, "putEvent", async () => "event-1");
+  t.mock.method(SchedulerService, "scheduleTimeout", async () => { throw new Error("Scheduler unavailable"); });
+  const payload = {
+    action: "opened", repository, sender: user, installation: { id: 99 },
+    issue: { ...issue, body: "/agent fix" },
+  };
+  assert.equal((await githubRequest("issues", payload)).statusCode, 500);
+  assert.equal(store.mock.callCount(), 1);
+  assert.equal(publish.mock.callCount(), 0);
+});
+
+test("storage failure stops timeout and provision dispatch", async (t) => {
+  t.mock.method(DynamoService, "create", async () => { throw new Error("DynamoDB unavailable"); });
+  const schedule = t.mock.method(SchedulerService, "scheduleTimeout", async () => {});
+  const publish = t.mock.method(EventBridgeService, "putEvent", async () => "event-1");
+  const payload = {
+    action: "opened", repository, sender: user, installation: { id: 99 },
+    issue: { ...issue, body: "/agent fix" },
+  };
+  assert.equal((await githubRequest("issues", payload)).statusCode, 500);
+  assert.equal(schedule.mock.callCount(), 0);
+  assert.equal(publish.mock.callCount(), 0);
+});
+
+test("command deliveries require the GitHub delivery ID", async (t) => {
+  const store = t.mock.method(DynamoService, "create", async () => {});
+  const payload = {
+    action: "opened", repository, sender: user, installation: { id: 99 },
+    issue: { ...issue, body: "/agent fix" },
+  };
+  const signature = createHmac("sha256", process.env.GITHUB_WEBHOOK_SECRET)
+    .update(JSON.stringify(payload)).digest("hex");
+  const response = await githubRequest("issues", payload, {
+    headers: {
+      "x-github-event": "issues", "x-hub-signature-256": `sha256=${signature}`,
+    },
+  });
+  assert.equal(response.statusCode, 400);
+  assert.equal(JSON.parse(response.body).message, "Missing X-GitHub-Delivery header");
+  assert.equal(store.mock.callCount(), 0);
 });
 
 test("extractGitHubWebhook normalizes issue and pull request events", () => {
@@ -259,7 +342,7 @@ test("validation preserves open actions, extra metadata, and nullable review pos
     sender: user,
     pull_request: pullRequest,
     comment: { ...comment, position: null },
-    installation: { id: 99 },
+    installation: { id: "ignored-installation" },
   };
   const response = await githubRequest("pull_request_review_comment", payload);
   assert.equal(response.statusCode, 202);
