@@ -73,13 +73,10 @@ test("worker EC2 policy is composed once and attached to the Lambda role", () =>
   assert.equal(resources.WorkerEC2Policy.Type, "AWS::IAM::ManagedPolicy");
 
   const statements = resources.WorkerEC2Policy.Properties.PolicyDocument.Statement;
-  assert.equal(statements.length, 7);
-  assert.deepEqual(statements[0].Action, [
-    "ec2:DescribeImages", "ec2:DescribeInstances", "ec2:DescribeVolumes", "ec2:DescribeNetworkInterfaces",
-  ]);
+  assert.equal(statements.length, 5);
+  assert.deepEqual(statements[0].Action, ["ec2:DescribeImages", "ec2:DescribeInstances"]);
   for (const action of ["ec2:DeleteVolume", "ec2:DeleteNetworkInterface"]) {
-    const deletion = statements.find((statement) => statement.Action === action);
-    assert.equal(deletion.Condition.StringEquals["ec2:ResourceTag/ManagedBy"], "agentic-setup");
+    assert.ok(!statements.some((statement) => statement.Action === action));
   }
   const terminate = statements.find((statement) => statement.Action === "ec2:TerminateInstances");
   assert.equal(terminate.Condition.StringEquals["ec2:ResourceTag/ManagedBy"], "agentic-setup");
