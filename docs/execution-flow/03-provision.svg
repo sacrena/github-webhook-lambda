@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="3262" viewBox="0 0 1600 3262" role="img" aria-labelledby="title desc">
+<title id="title">03  Launch reservation, EC2 allocation and recovery</title>
+<desc id="desc">Detailed execution call cards in reading order. Each card shows inputs, transformations and persistence. Dashed cards are assumed connections. Branches and alternatives are explicitly labeled. Read the linked Markdown for all field contracts and errors.</desc>
+<defs>
+<style>text{font-family:"Comic Sans MS","Segoe Print",cursive,sans-serif;fill:#fff}.title{font-size:32px;font-weight:700}.heading{font-size:23px;font-weight:700;fill:#ff4d00}.body{font-size:18px}.note{font-size:17px;fill:#bdbdbd}.outline{fill:#1a1a1a;stroke:#f5f5f5;stroke-width:2;stroke-linejoin:round}.echo{fill:none;stroke:#aaa;stroke-width:.7;opacity:.55}.assumed{stroke:#ff4d00;stroke-dasharray:10 7}.join{fill:none;stroke:#ff4d00;stroke-width:2;stroke-linecap:round}</style>
+</defs>
+<rect width="1600" height="3262" fill="#1a1a1a"/>
+<text x="60" y="58" class="title">03  Launch reservation, EC2 allocation and recovery</text>
+<text x="60" y="96" class="body">White outline = implemented function / AWS configuration   •   Dashed orange = assumed adapter</text>
+<text x="60" y="128" class="note">Read numbered cards in order; follow the explicit branch labels. Full field and failure contracts are in 03-provision.md.</text>
+<a href="03-provision.md"><g id="step-1" data-box="60,166,1480,180">
+<path class="outline assumed" d="M60 166 Q790 163 1540 167 L1541 346 Q800 349 59 346 Z"/>
+<path class="echo assumed" d="M63 169 L1537 165 L1539 343 L62 348 Z"/>
+<text x="84" y="205" class="heading">P1  ASSUMED provision adapter</text>
+<path d="M798 228 Q800 273 798 324" class="echo"/>
+<text x="84" y="254" class="body">IN  authenticated full EventBridge envelope</text>
+<text x="84" y="291" class="body">CHECK  source, detail-type, detail.deliveryId</text>
+<text x="824" y="254" class="body">CALL  DynamoService.get(tableName, deliveryId)</text>
+<text x="824" y="291" class="body">ADD  timeoutAt = stored receivedAt + 30 minutes</text>
+</g></a>
+<path class="join" d="M42 236 Q26 236 28 301 L28 401 Q28 416 47 416 M39 410 L48 416 L39 423"/>
+<a href="03-provision.md"><g id="step-2" data-box="60,384,1480,180">
+<path class="outline" d="M60 384 Q790 381 1540 385 L1541 564 Q800 567 59 564 Z"/>
+<path class="echo" d="M63 387 L1537 383 L1539 561 L62 566 Z"/>
+<text x="84" y="423" class="heading">P2  EC2Service.createInstance(options, tableName)</text>
+<path d="M798 446 Q800 491 798 542" class="echo"/>
+<text x="84" y="472" class="body">CHECK  table is nonblank</text>
+<text x="84" y="509" class="body">CALL  InstanceJournal.reserve(options, tableName)</text>
+<text x="824" y="472" class="body">OUT  journal {deliveryId, token, instanceId?}</text>
+<text x="824" y="509" class="body">BRANCH  saved instanceId → findInstance; no new launch</text>
+</g></a>
+<path class="join" d="M42 454 Q26 454 28 519 L28 619 Q28 634 47 634 M39 628 L48 634 L39 641"/>
+<a href="03-provision.md"><g id="step-3" data-box="60,602,1480,180">
+<path class="outline" d="M60 602 Q790 599 1540 603 L1541 782 Q800 785 59 782 Z"/>
+<path class="echo" d="M63 605 L1537 601 L1539 779 L62 784 Z"/>
+<text x="84" y="641" class="heading">P3  InstanceJournal.reserve → get</text>
+<path d="M798 664 Q800 709 798 760" class="echo"/>
+<text x="84" y="690" class="body">CHECK  deliveryId.trim() nonempty; keep original value</text>
+<text x="84" y="727" class="body">SEND  consistent GetCommand Key={deliveryId}</text>
+<text x="824" y="690" class="body">OUT  Item.resourceLaunch, with no runtime validation</text>
+<text x="824" y="727" class="body">EXISTS  return journal directly; skip new reservation</text>
+</g></a>
+<path class="join" d="M42 672 Q26 672 28 737 L28 837 Q28 852 47 852 M39 846 L48 852 L39 859"/>
+<a href="03-provision.md"><g id="step-4" data-box="60,820,1480,180">
+<path class="outline" d="M60 820 Q790 817 1540 821 L1541 1000 Q800 1003 59 1000 Z"/>
+<path class="echo" d="M63 823 L1537 819 L1539 997 L62 1002 Z"/>
+<text x="84" y="859" class="heading">P4  New journal: resolveInstanceLaunch → hash</text>
+<path d="M798 882 Q800 927 798 978" class="echo"/>
+<text x="84" y="908" class="body">CHECK  valid timeout; normalize UTC; reject expired</text>
+<text x="84" y="945" class="body">ADD  fixed region, AMI and instance type in memory</text>
+<text x="824" y="908" class="body">HASH  SHA-256(deliveryId) → stable client token</text>
+<text x="824" y="945" class="body">BUILD  journal={deliveryId, token}; no config/deadline</text>
+</g></a>
+<path class="join" d="M42 890 Q26 890 28 955 L28 1055 Q28 1070 47 1070 M39 1064 L48 1070 L39 1077"/>
+<a href="03-provision.md"><g id="step-5" data-box="60,1038,1480,180">
+<path class="outline" d="M60 1038 Q790 1035 1540 1039 L1541 1218 Q800 1221 59 1218 Z"/>
+<path class="echo" d="M63 1041 L1537 1037 L1539 1215 L62 1220 Z"/>
+<text x="84" y="1077" class="heading">P5  Reserve conditional UpdateCommand</text>
+<path d="M798 1100 Q800 1145 798 1196" class="echo"/>
+<text x="84" y="1126" class="body">SET  resourceLaunch=:launch</text>
+<text x="84" y="1163" class="body">REQUIRE  parent exists AND launch journal absent</text>
+<text x="824" y="1126" class="body">STORE  nested journal; retain original request fields</text>
+<text x="824" y="1163" class="body">RACE  conditional failure → get winner or throw</text>
+</g></a>
+<path class="join" d="M42 1108 Q26 1108 28 1173 L28 1273 Q28 1288 47 1288 M39 1282 L48 1288 L39 1295"/>
+<a href="03-provision.md"><g id="step-6" data-box="60,1256,1480,180">
+<path class="outline" d="M60 1256 Q790 1253 1540 1257 L1541 1436 Q800 1439 59 1436 Z"/>
+<path class="echo" d="M63 1259 L1537 1255 L1539 1433 L62 1438 Z"/>
+<text x="84" y="1295" class="heading">P6  Fresh launch path after reservation</text>
+<path d="M798 1318 Q800 1363 798 1414" class="echo"/>
+<text x="84" y="1344" class="body">CALL  resolveInstanceLaunch again; reject expiry again</text>
+<text x="84" y="1381" class="body">CHECK  trimmed EC2_SECURITY_GROUP_ID</text>
+<text x="824" y="1344" class="body">BUILD  EC2Client in fixed us-east-1</text>
+<text x="824" y="1381" class="body">FAILURE  journal can remain even without an instance</text>
+</g></a>
+<path class="join" d="M42 1326 Q26 1326 28 1391 L28 1491 Q28 1506 47 1506 M39 1500 L48 1506 L39 1513"/>
+<a href="03-provision.md"><g id="step-7" data-box="60,1474,1480,180">
+<path class="outline" d="M60 1474 Q790 1471 1540 1475 L1541 1654 Q800 1657 59 1654 Z"/>
+<path class="echo" d="M63 1477 L1537 1473 L1539 1651 L62 1656 Z"/>
+<text x="84" y="1513" class="heading">P7  RunInstances: all launch settings</text>
+<path d="M798 1536 Q800 1581 798 1632" class="echo"/>
+<text x="84" y="1562" class="body">AMI  ami-0246d714afcc1d494; type m8g.xlarge</text>
+<text x="84" y="1599" class="body">SET  ClientToken; MinCount=MaxCount=1; shutdown=terminate</text>
+<text x="824" y="1562" class="body">SET  IMDSv2 required; shared security group</text>
+<text x="824" y="1599" class="body">DISK  /dev/sda1; 50 GiB gp3; DeleteOnTermination=true</text>
+</g></a>
+<path class="join" d="M42 1544 Q26 1544 28 1609 L28 1709 Q28 1724 47 1724 M39 1718 L48 1724 L39 1731"/>
+<a href="03-provision.md"><g id="step-8" data-box="60,1692,1480,180">
+<path class="outline" d="M60 1692 Q790 1689 1540 1693 L1541 1872 Q800 1875 59 1872 Z"/>
+<path class="echo" d="M63 1695 L1537 1691 L1539 1869 L62 1874 Z"/>
+<text x="84" y="1731" class="heading">P8  RunInstances: tags and omitted inputs</text>
+<path d="M798 1754 Q800 1799 798 1850" class="echo"/>
+<text x="84" y="1780" class="body">TAGS  ManagedBy, DeliveryId, LaunchRequestId, TimeoutAt</text>
+<text x="84" y="1817" class="body">APPLY  instance + volume + network-interface</text>
+<text x="824" y="1780" class="body">OMIT  subnet, UserData, profile, key pair, repo/command</text>
+<text x="824" y="1817" class="body">STORE  AWS resource configuration and tags</text>
+</g></a>
+<path class="join" d="M42 1762 Q26 1762 28 1827 L28 1927 Q28 1942 47 1942 M39 1936 L48 1942 L39 1949"/>
+<a href="03-provision.md"><g id="step-9" data-box="60,1910,1480,180">
+<path class="outline" d="M60 1910 Q790 1907 1540 1911 L1541 2090 Q800 2093 59 2090 Z"/>
+<path class="echo" d="M63 1913 L1537 1909 L1539 2087 L62 2092 Z"/>
+<text x="84" y="1949" class="heading">P9  Allocation response → instanceResource</text>
+<path d="M798 1972 Q800 2017 798 2068" class="echo"/>
+<text x="84" y="1998" class="body">REQUIRE  exactly one instance and a nonempty ID</text>
+<text x="84" y="2035" class="body">COPY  delivery/token/ID/type/region; optional LaunchTime</text>
+<text x="824" y="1998" class="body">MAP  state → status; ADD local updatedAt, timeoutAt</text>
+<text x="824" y="2035" class="body">OUT  resource view; allocation is not guest-job success</text>
+</g></a>
+<path class="join" d="M42 1980 Q26 1980 28 2045 L28 2145 Q28 2160 47 2160 M39 2154 L48 2160 L39 2167"/>
+<a href="03-provision.md"><g id="step-10" data-box="60,2128,1480,180">
+<path class="outline" d="M60 2128 Q790 2125 1540 2129 L1541 2308 Q800 2311 59 2308 Z"/>
+<path class="echo" d="M63 2131 L1537 2127 L1539 2305 L62 2310 Z"/>
+<text x="84" y="2167" class="heading">P10  InstanceJournal.record → createInstance returns</text>
+<path d="M798 2190 Q800 2235 798 2286" class="echo"/>
+<text x="84" y="2216" class="body">SEND  SET resourceLaunch.instanceId=:instanceId</text>
+<text x="84" y="2253" class="body">REQUIRE  attribute_exists(resourceLaunch)</text>
+<text x="824" y="2216" class="body">STORE  only instance ID; status/times remain transient</text>
+<text x="824" y="2253" class="body">RETURN  complete resource view; write errors propagate</text>
+</g></a>
+<path class="join" d="M42 2198 Q26 2198 28 2263 L28 2363 Q28 2378 47 2378 M39 2372 L48 2378 L39 2385"/>
+<a href="03-provision.md"><g id="step-11" data-box="60,2346,1480,180">
+<path class="outline" d="M60 2346 Q790 2343 1540 2347 L1541 2526 Q800 2529 59 2526 Z"/>
+<path class="echo" d="M63 2349 L1537 2345 L1539 2523 L62 2528 Z"/>
+<text x="84" y="2385" class="heading">P11  Separate recovery path: recoverInstance</text>
+<path d="M798 2408 Q800 2453 798 2504" class="echo"/>
+<text x="84" y="2434" class="body">CHECK  table; get existing journal or throw</text>
+<text x="84" y="2471" class="body">CALL  findInstance(journal)</text>
+<text x="824" y="2434" class="body">NONE  return undefined; no write</text>
+<text x="824" y="2471" class="body">FOUND  record identity and return resource view</text>
+</g></a>
+<path class="join" d="M42 2416 Q26 2416 28 2481 L28 2581 Q28 2596 47 2596 M39 2590 L48 2596 L39 2603"/>
+<a href="03-provision.md"><g id="step-12" data-box="60,2564,1480,180">
+<path class="outline" d="M60 2564 Q790 2561 1540 2565 L1541 2744 Q800 2747 59 2744 Z"/>
+<path class="echo" d="M63 2567 L1537 2563 L1539 2741 L62 2746 Z"/>
+<text x="84" y="2603" class="heading">P12  findInstance: paginated client-token lookup</text>
+<path d="M798 2626 Q800 2671 798 2722" class="echo"/>
+<text x="84" y="2652" class="body">SEND  DescribeInstances filter client-token=journal.token</text>
+<text x="84" y="2689" class="body">LOOP  reservations → instances → instanceResource</text>
+<text x="824" y="2652" class="body">ADD  TimeoutAt from tag; LaunchTime from AWS</text>
+<text x="824" y="2689" class="body">COLLECT  Map by instance ID; follow every NextToken</text>
+</g></a>
+<path class="join" d="M42 2634 Q26 2634 28 2699 L28 2799 Q28 2814 47 2814 M39 2808 L48 2814 L39 2821"/>
+<a href="03-provision.md"><g id="step-13" data-box="60,2782,1480,180">
+<path class="outline" d="M60 2782 Q790 2779 1540 2783 L1541 2962 Q800 2965 59 2962 Z"/>
+<path class="echo" d="M63 2785 L1537 2781 L1539 2959 L62 2964 Z"/>
+<text x="84" y="2821" class="heading">P13  findInstance: cardinality and fallback</text>
+<path d="M798 2844 Q800 2889 798 2940" class="echo"/>
+<text x="84" y="2870" class="body">MORE THAN ONE  throw invariant error</text>
+<text x="84" y="2907" class="body">ONE  return mapped observation; no direct write</text>
+<text x="824" y="2870" class="body">ZERO  savedInstanceResource → identity-only or undefined</text>
+<text x="824" y="2907" class="body">API ERROR  propagates; empty-page fallback does not apply</text>
+</g></a>
+<path class="join" d="M42 2852 Q26 2852 28 2917 L28 3017 Q28 3032 47 3032 M39 3026 L48 3032 L39 3039"/>
+<a href="03-provision.md"><g id="step-14" data-box="60,3000,1480,180">
+<path class="outline" d="M60 3000 Q790 2997 1540 3001 L1541 3180 Q800 3183 59 3180 Z"/>
+<path class="echo" d="M63 3003 L1537 2999 L1539 3177 L62 3182 Z"/>
+<text x="84" y="3039" class="heading">P14  savedInstanceResource and lifecycle mapping</text>
+<path d="M798 3062 Q800 3107 798 3158" class="echo"/>
+<text x="84" y="3088" class="body">FALLBACK  deliveryId, launchRequestId, ID, type, region</text>
+<text x="84" y="3125" class="body">OMIT  status, timestamps and deadline</text>
+<text x="824" y="3088" class="body">MAP  running→active; shutting-down→termination_requested</text>
+<text x="824" y="3125" class="body">MAP  terminated→terminated; pending/unknown→provisioning</text>
+</g></a>
+<a href="03-provision.md"><text x="60" y="3242" class="note">Open 03-provision.md • Current working-tree inspection, 2026-09-17 • Excalidraw-style SVG; no live AWS execution asserted.</text></a>
+</svg>
