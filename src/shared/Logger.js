@@ -8,8 +8,8 @@ const levels = { debug: 10, info: 20, warn: 30, error: 40, silent: 50 };
  * Writes a structured operational event for Lambda and deployment scripts.
  * Callers supply a stable event name and explicitly selected scalar metadata;
  * credentials, command arguments, and raw errors must stay outside it.
- * The provisioning placeholder explicitly logs its authenticated body as text;
- * other callers keep payload bodies outside operational metadata.
+ * Lifecycle endpoints log delivery and resource identities rather than raw
+ * event bodies, keeping command content outside operational metadata.
  * LOG_LEVEL is read at emission time and defaults to info for unknown values.
  * Lambda records use the matching console severity so CloudWatch labels agree
  * with the JSON level. Outside Lambda, stderr keeps command stdout separate.
