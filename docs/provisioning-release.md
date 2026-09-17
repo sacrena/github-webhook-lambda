@@ -10,7 +10,7 @@ Provisioning and timeout require `X-Api-Key`, source `agentic.setup`, the exact 
 | --- | --- | --- |
 | `POST /provision` | Stored request → shared deadline → `EC2Service.createInstance`; 202 with `{resource}` | Expired: 200 without launch. Missing request: 404. Invalid envelope: 400. Storage/launch/configuration failure: 500. |
 | `POST /timeout` | Stored deadline check → journal lookup → `EC2Service.deleteInstance`; 202 with `{resource}` | Premature: 503 for retry. No launch journal: 200. Empty discovery with a journal: 503. Missing request: 404. Invalid envelope: 400. Service/configuration failure: 500. |
-| `POST /cleanup` | Regional instance sweep, then independent detached-volume and detached-interface sweeps | Action, tracking or category discovery failure: 500 with partial results. Otherwise 200. Request body cannot select targets. |
+| `POST /cleanup` | Regional sweep terminating expired managed instances | Action, tracking or category discovery failure: 500 with partial results. Otherwise 200. Request body cannot select targets. |
 
 All three return 401 for an invalid key or 500 for missing server key configuration. Lifecycle logs contain delivery/resource identities rather than raw callback bodies. Resource status and timestamps remain transient; only `resourceLaunch.deliveryId`, `.token` and `.instanceId` are persisted. The original request remains after termination. An explicit EC2 `InvalidInstanceID.NotFound` response is tolerated on repeated deletion without asserting an observed terminal state.
 
@@ -26,19 +26,17 @@ The provision rule now matches `agentic.setup` and `ProvisionRequested`. Timeout
 
 Tags permit independent discovery; mutable AWS metadata cannot guarantee unconditional deletion. Launch tags its instance, root volume and primary interface with `ManagedBy=agentic-setup`, `DeliveryId`, `LaunchRequestId` and UTC `TimeoutAt`. The recurring cleanup schedule defaults to once per minute.
 
-The instance scan paginates through pending, running, stopping, stopped and shutting-down workers, and rechecks ownership/expiry before termination. Missing/unreadable journals enter `trackingFailed` but do not block termination of expired tagged instances. Root EBS deletion is enabled on termination; the automatically created primary interface follows the instance lifecycle.
+The instance scan paginates through pending, running, stopping, stopped and shutting-down workers, and rechecks ownership/expiry before termination. Missing/unreadable journals enter `trackingFailed` but do not block termination of expired tagged instances. Root EBS deletion is explicitly enabled with `DeleteOnTermination: true`; the automatically created primary interface follows the instance lifecycle.
 
-The new attachment scans run independently of instance discovery. Each candidate gets a fresh ID-specific read. Volumes must be expired, owned, `available` and have no attachments. Interfaces must be expired, owned, `available`, unattached, not requester-managed and have no address association. Both require a nonblank launch token. Cleanup never forcibly detaches resources; later passes handle leftovers once they become available. Already-absent attachments are accepted as reconciled.
+AWS handles attached resources using their termination settings. The application enables root-volume deletion at launch but does not scan and delete detached attachments. Volumes whose deletion setting is subsequently disabled and resources detached before termination remain outside cleanup coverage.
 
 | Result field | Meaning |
 | --- | --- |
 | `terminationRequested` | Instance termination accepted, not completion confirmed. |
-| `deletedVolumes` | Detached-volume deletion accepted or resource already absent. |
-| `deletedNetworkInterfaces` | Detached-interface deletion accepted or resource already absent. |
-| `skipped` | Ownership, expiry or attachment state made the resource ineligible. |
+| `skipped` | Ownership, expiry or instance state made the resource ineligible. |
 | `failed` | Resource recheck or deletion failed. |
 | `trackingFailed` | Instance journal could not be read, matched or updated. |
-| `queryFailed` | Incomplete discovery for `instances`, `volumes` or `network-interfaces`. |
+| `queryFailed` | Incomplete discovery for `instances`. |
 
 Categories can overlap. Partial successes remain visible even when a later page fails. Each pass restarts discovery; there is no durable pagination cursor, sharding or deletion waiter. A cleanup 200 means this pass reported no failures, not that every AWS resource has disappeared.
 
@@ -64,10 +62,10 @@ The template test scans runtime source for environment references and verifies e
 
 SDK credentials come from the Lambda execution role; local credentials are not copied into custom environment variables. `CleanupScheduleExpression` is a CloudFormation parameter, not an environment variable. AMI, instance type and root disk settings remain constants. Deployment must use `us-east-1`, where the pinned AMI and configured VPC `vpc-0773cc6f63148e689`/default networking must be available. Secret rotation requires updating resolved consumers as well as Secrets Manager.
 
-IAM now includes Scheduler `GetSchedule`, EC2 attachment describe permissions, and resource-scoped volume/interface deletion guarded by `ManagedBy=agentic-setup`. These permissions require a stack update; uploading the ZIP alone is insufficient.
+IAM includes Scheduler `GetSchedule` and tag-scoped EC2 termination. Separate attachment describe and deletion permissions have been removed. Applying the reduced permissions requires a stack update; uploading the ZIP alone is insufficient.
 
 ## Packaging and verification
 
 The ZIP builder copies the complete compiled tree and locked production dependencies. This fixes the omitted `ProvisioningConstants.js` and includes new helpers without a second module list. The validation workflow's worker-policy filename is corrected to `agentic-policy-setup.yaml`.
 
-`npm test` covers endpoint authentication/expiry, signed intake through provisioning and timeout using real handlers with mocked SDK transports, replay after a partial failure, stable schedule conflicts, attachment races, partial cleanup failures and environment/IAM wiring. `npm run package` builds the artifact; extracting and importing its entry point checks runtime module availability. Actual worker boot and eventual AWS deletion require a later live smoke run.
+`npm test` covers endpoint authentication/expiry, signed intake through provisioning and timeout using real handlers with mocked SDK transports, replay after a partial failure, stable schedule conflicts, partial cleanup failures and environment/IAM wiring. `npm run package` builds the artifact; extracting and importing its entry point checks runtime module availability. Actual worker boot and eventual AWS deletion require a later live smoke run.
