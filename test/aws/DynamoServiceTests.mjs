@@ -7,6 +7,8 @@ test("create writes the request conditionally and propagates duplicate and stora
   const request = {
     deliveryId: "delivery-1", receivedAt: "2026-09-16T00:00:00Z",
     webhook_type: "issue_comment", id: 123, value: "/agent fix the failing test",
+    repositoryId: 10, repositoryFullName: "octocat/hello",
+    issueOrPullRequestNumber: 42, senderId: 30,
   };
   const duplicate = new Error("duplicate delivery");
   duplicate.name = "ConditionalCheckFailedException";
@@ -30,6 +32,8 @@ test("get reads consistently and distinguishes missing records from AWS failures
   const request = {
     deliveryId: "delivery-1", receivedAt: "2026-09-16T00:00:00Z",
     webhook_type: "pull_request", id: 456, value: null,
+    repositoryId: 10, repositoryFullName: "octocat/hello",
+    issueOrPullRequestNumber: 42, senderId: 30,
   };
   let result = { Item: request };
   const failure = new Error("storage unavailable");
